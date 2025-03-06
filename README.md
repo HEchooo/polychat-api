@@ -1,6 +1,6 @@
 <div align="center">
 
-# Open Assistant API
+# Polychat API
 
 _✨ An out-of-the-box AI intelligent assistant API ✨_
 
@@ -14,7 +14,7 @@ _✨ An out-of-the-box AI intelligent assistant API ✨_
 
 ## Introduction
 
-Open Assistant API is an open-source, self-hosted AI intelligent assistant API, compatible with the official OpenAI
+Polychat API is an open-source, self-hosted AI intelligent assistant API, compatible with the official OpenAI
 interface. It can be used directly with the official OpenAI [Client](https://github.com/openai/openai-python) to build
 LLM applications.
 
@@ -41,31 +41,33 @@ assistant = client.beta.assistants.create(
 )
 ```
 
-## Why Choose Open Assistant API
+## Why Choose Polychat API
 
-| Feature                  | Open Assistant API | OpenAI Assistant API |
-|--------------------------|--------------------|----------------------|
-| Ecosystem Strategy       | Open Source        | Closed Source        |
-| RAG Engine               | Support R2R        | Supported            |
-| Internet Search          | Supported          | Not Supported        |
-| Custom Functions         | Supported          | Supported            |
-| Built-in Tool            | Extendable         | Not Extendable       |
-| Code Interpreter         | Under Development  | Supported            |
-| Multimodal               | Supported          | Supported            |
-| LLM Support              | Supports More LLMs | Only GPT             |
-| Message Streaming Output | Supports           | Supported            |
-| Local Deployment         | Supported          | Not Supported        |
+| Feature                  | Polychat  API                      | OpenAI Assistant API |
+|--------------------------|------------------------------------|----------------------|
+| Ecosystem Strategy       | Open Source                        | Closed Source        |
+| RAG Engine               | Support R2R/Faiss(WIP) etc.        | Supported            |
+| Internet Search          | Supported                          | Not Supported        |
+| Custom Functions         | Supported                          | Supported            |
+| Built-in Tool            | Extendable                         | Not Extendable       |
+| Code Interpreter         | Supports(WIP)                      | Supported            |
+| Multimodal               | Supported                          | Supported            |
+| LLM Endpoint Switch      | Endpoints Dynamic Changeable (WIP) | Only GPT             |
+| LLM Support              | Supports More LLMs                 | Only OpenAI          |
+| Message Streaming Output | Supports                           | Supported            |
+| Local Deployment         | Supported                          | Not Supported        |
+|
 
-- **LLM Support**: Compared to the official OpenAI version, more models can be supported by integrating with One API.
+- **LLM Support**: Compared to the official OpenAI version, more models can be supported through different LLM serving APIs (oenAPI, Ollama or vLLM or openAI).
 - **Tool**: Currently supports online search; can easily expand more tools.
-- **RAG Engine**: The currently supported file types are txt, html, markdown, pdf, docx, pptx, xlsx, png, mp3, mp4, etc. We provide a preliminary
-  implementation.
+- **RAG Engine**: Multimodel suport, the currently supported file types are txt, html, markdown, pdf, docx, pptx, xlsx, png, mp3, mp4, etc.
+  We provide a preliminary. We support up-to-date R2R engine and Faiss support and more are working in progress.
 - **Message Streaming Output**: Support message streaming output for a smoother user experience.
 - **Ecosystem Strategy**: Open source, you can deploy the service locally and expand the existing features.
 
 ## Quick Start
 
-The easiest way to start the Open Assistant API is to run the docker-compose.yml file. Make sure Docker and Docker
+The easiest way to start the Polychat API is to run the docker-compose.yml file. Make sure Docker and Docker
 Compose are installed on your machine before running.
 
 ### Configuration
@@ -135,20 +137,11 @@ According to the OpenAPI/Swagger specification, it allows the integration of var
 2. During usage, you need to create tools first, and then you can integrate them with the assistant. Refer to the test cases for more details.[Assistant With Action](tests/tools/assistant_action_test.py)
 3. If you need to use tools with authentication information, simply add the authentication information at runtime. The specific parameter format can be found in the API documentation. Refer to the test cases for more details. [Run With Auth Action](tests/tools/run_with_auth_action_test.py)
 
-
-## Community and Support
-
-- Join the [Slack](https://join.slack.com/t/openassistant-qbu7007/shared_invite/zt-29t8j9y12-9og5KZL6GagXTEvbEDf6UQ)
-  channel to see new releases, discuss issues, and participate in community interactions.
-- Join the [Discord](https://discord.gg/VfBruz4B) channel to interact with other community members.
-- Join the WeChat group:
-
-  ![](docs/imgs/wx.png)
-
 ## Special Thanks
 
 We mainly referred to and relied on the following projects:
 
+- [Open Assistant API]([https://github.com/transitive-bullshit/OpenOpenAI](https://github.com/MLT-OSS/open-assistant-api)): Open Assistant API
 - [OpenOpenAI](https://github.com/transitive-bullshit/OpenOpenAI): Assistant API implemented in Node
 - [One API](https://github.com/songquanpeng/one-api): Multi-model management tool
 - [R2R](https://github.com/SciPhi-AI/R2R): RAG engine
