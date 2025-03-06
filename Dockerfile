@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir poetry \
 COPY poetry.lock /env/poetry.lock
 COPY pyproject.toml /env/pyproject.toml
 
-RUN cd /env && poetry lock --no-update && poetry install --only main
+RUN cd /env && poetry lock && poetry install --no-root --sync
 
 EXPOSE 8086
 
