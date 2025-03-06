@@ -15,12 +15,13 @@ _✨ An out-of-the-box AI intelligent assistant API ✨_
 ## Introduction
 
 Polychat API is an open-source, self-hosted AI intelligent assistant API, compatible with the official OpenAI
-interface. It can be used directly with the official OpenAI [Client](https://github.com/openai/openai-python) to build
-LLM applications.
+Assistant and Chat interface. It can be used directly with the official OpenAI [Client](https://github.com/openai/openai-python) to build
+LLM applications, automatically preserve the chat context and apply to the new chat.
 
-It supports [One API](https://github.com/songquanpeng/one-api) for integration with more commercial and private models.
+It supports [One API](https://github.com/songquanpeng/one-api), [vLLM](https://docs.vllm.ai/en/latest/), [Ollama](https://ollama.com/) 
+and [OpenAI](https://platform.openai.com/) for integration with more commercial and private models.
 
-It supports [R2R](https://github.com/SciPhi-AI/R2R) RAG engine。
+It supports [R2R](https://github.com/SciPhi-AI/R2R) [Faiss](https://github.com/facebookresearch/faiss) etc. RAG engine。
 
 ## Usage
 
@@ -142,7 +143,7 @@ According to the OpenAPI/Swagger specification, it allows the integration of var
 
 We mainly referred to and relied on the following projects:
 
-- [Open Assistant API](https://github.com/MLT-OSS/open-assistant-api): Open Assistant API
+- [Open Assistant API](https://github.com/MLT-OSS/open-assistant-api): Assistant API Implemented in Python
 - [OpenOpenAI](https://github.com/transitive-bullshit/OpenOpenAI): Assistant API implemented in Node
 - [One API](https://github.com/songquanpeng/one-api): Multi-model management tool
 - [R2R](https://github.com/SciPhi-AI/R2R): RAG engine
