@@ -52,13 +52,14 @@ assistant = client.beta.assistants.create(
 | Built-in Tool            | Extendable                         | Not Extendable       |
 | Code Interpreter         | Supports(WIP)                      | Supported            |
 | Multimodal               | Supported                          | Supported            |
-| LLM Endpoint Switch      | Endpoints Dynamic Changeable (WIP) | Only GPT             |
-| LLM Support              | Supports More LLMs                 | Only OpenAI          |
+| LLM Endpoint Switch      | Endpoints Dynamic Changeable (WIP) | Only OpenAI          |
+| LLM Support              | Supports More LLMs                 | Only GPT             |
 | Message Streaming Output | Supports                           | Supported            |
 | Local Deployment         | Supported                          | Not Supported        |
 
 
-- **LLM Support**: Compared to the official OpenAI version, more models can be supported through different LLM serving APIs (oenAPI, Ollama or vLLM or openAI).
+- **LLM Support**: Compared to the official OpenAI version, more models can be supported through different LLM serving
+  APIs (oenAPI, Ollama or vLLM or openAI).
 - **Tool**: Currently supports online search; can easily expand more tools.
 - **RAG Engine**: Multimodel suport, the currently supported file types are txt, html, markdown, pdf, docx, pptx, xlsx, png, mp3, mp4, etc.
   We provide a preliminary. We support up-to-date R2R engine and Faiss support and more are working in progress.
