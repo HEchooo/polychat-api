@@ -56,7 +56,7 @@ assistant = client.beta.assistants.create(
 | LLM Support              | Supports More LLMs                 | Only OpenAI          |
 | Message Streaming Output | Supports                           | Supported            |
 | Local Deployment         | Supported                          | Not Supported        |
-|
+
 
 - **LLM Support**: Compared to the official OpenAI version, more models can be supported through different LLM serving APIs (oenAPI, Ollama or vLLM or openAI).
 - **Tool**: Currently supports online search; can easily expand more tools.
