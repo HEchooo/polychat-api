@@ -1,0 +1,7 @@
+AWS Health provides improved visibility into planned lifecycle events
+
+Posted On: Nov 9, 2023
+
+AWS Health introduces new features to help you manage planned lifecycle events, such as Amazon EKS Kubernetes version end of standard support, Amazon RDS certificate rotations, and end of support for other open source software. AWS Health is the authoritative source of information about service events and scheduled changes affecting your AWS cloud resources.
+
+These new features provide timely visibility into upcoming planned lifecycle events, a standardized data format that allows you to prepare and take actions, as well as the ability to dynamically track the completion of required actions at the resource-level. AWS Health also provides organization-wide visibility into planned lifecycle events for teams that manage workloads across the company.
