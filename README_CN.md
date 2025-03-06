@@ -1,6 +1,6 @@
 <div align="center">
 
-# Open Assistant API
+# Polychat API
 
 _✨ 开箱即用的 AI 智能助手 API ✨_
 
@@ -14,12 +14,14 @@ _✨ 开箱即用的 AI 智能助手 API ✨_
 
 ## 简介
 
-Open Assistant API 是一个开源自托管的 AI 智能助手 API，兼容 OpenAI 官方接口，
-可以直接使用 OpenAI 官方的 [Client](https://github.com/openai/openai-python) 构建 LLM 应用。
+Polychat API 是一个开源自托管的 AI 智能助手 API，兼容 OpenAI 官方接口，
+可以直接使用 OpenAI 官方的 [Client](https://github.com/openai/openai-python) 构建 LLM 对话应用，进行
+对话上下文的保留。
 
-支持 [One API](https://github.com/songquanpeng/one-api) 可以用其接入更多商业和私有模型。
+支持 [One API](https://github.com/songquanpeng/one-api), [vLLM](https://docs.vllm.ai/en/latest/), [Ollama](https://ollama.com/) 
+以及[OpenAI](https://platform.openai.com/) 等 可以用其接入更多商业和私有模型。
 
-支持 [R2R](https://github.com/SciPhi-AI/R2R) RAG 引擎。
+支持 [R2R](https://github.com/SciPhi-AI/R2R) [Faiss](https://github.com/facebookresearch/faiss) 等RAG 引擎。
 
 ## 使用
 
@@ -40,30 +42,31 @@ assistant = client.beta.assistants.create(
 )
 ```
 
-## 为什么选择 Open Assistant API
+## 为什么选择 Polychat API
 
-| 功能               | Open Assistant API | OpenAI Assistant API |
-|------------------|--------------------|----------------------|
-| 生态策略             | 开源                 | 闭源                   |
-| RAG 引擎           | 支持 R2R             | 支持                   |
-| 联网搜索             | 支持                 | 不支持                  |
-| 自定义 Functions    | 支持                 | 支持                   |
-| 内置 Tool          | 支持扩展               | 不支持扩展                |
-| Code Interpreter | 待开发                | 支持                   |
-| 多模态识别            | 支持                 | 支持                   |
-| LLM 支持           | 支持更多的 LLM          | 仅 GPT                |
-| Message 流式输出     | 支持                 | 支持                   |
-| 本地部署             | 支持                 | 不支持                  |
+| 功能                  | Polychat  API                      | OpenAI Assistant API |
+|--------------------------|------------------------------------|----------------------|
+| 生态策略       | 开源                        | 闭源        |
+| RAG 引擎               | 支持 R2R/Faiss(WIP) 等        | 支持            |
+| 联网搜索          | 支持                          | 不支持        |
+| 自定义 Functions         | 支持                          | 支持            |
+| 内置 Tool            | 可扩展                         | 不支持扩展       |
+| Code Interpreter         | 开发中                      | 支持            |
+| LLM 支持               | 支持                          | 支持            |
+| LLM 服务切换      | 动态可切换 (WIP) | 仅支持 OpenAI          |
+| LLM Support              | 多LLM支持                 | 仅支持 GPT             |
+| Message 流式输出 | 支持                           | 支持            |
+| 本地部署         | 支持                          | 不支持        |
 
-- **LLM 支持**: 相较于 OpenAI 官方版本，可以通过接入 One API 来支持更多的模型。
+- **LLM 支持**: 相较于 OpenAI 官方版本，可以通过接入 vLLM, OneAPI 或者 Ollama等 来支持更多的模型。
 - **Tool**: 目前支持联网搜索；可以较容易扩展更多的 Tool。
-- **RAG 引擎**: 支持 R2R RAG 引擎，目前支持的文件类型有 txt、html、markdown、pdf、docx、pptx、xlsx、png、mp3、mp4 等。
+- **RAG 引擎**: 支持 R2R，Faiss等 RAG 引擎，目前支持的文件类型有 txt、html、markdown、pdf、docx、pptx、xlsx、png、mp3、mp4 等。
 - **Message 流式输出**: 支持 Message 流式输出，提供更流畅的用户体验。
 - **生态策略**: 开源，你可以将服务部署在本地，可以对已有功能进行扩展。
 
 ## 快速上手
 
-启动 Open Assistant API 最简单方法是运行 docker-compose.yml 文件。 运行之前确保机器上安装了 Docker 和 Docker Compose。
+启动 Polychat API 最简单方法是运行 docker-compose.yml 文件。 运行之前确保机器上安装了 Docker 和 Docker Compose。
 
 ### 配置
 
@@ -131,19 +134,11 @@ python examples/run_assistant.py
 2. 在使用过程中，需创建工具，接着将工具与助手搭配即可，查看测试用例[Assistant With Action](tests/tools/assistant_action_test.py)
 2. 若需要使用带认证信息的工具，只需在运行时添加认证信息即可，具体参数格式可在接口文档中查看。查看测试用例[Run With Auth Action](tests/tools/run_with_auth_action_test.py)
 
-## 社区与支持
-
-- 加入 [Slack](https://join.slack.com/t/openassistant-qbu7007/shared_invite/zt-29t8j9y12-9og5KZL6GagXTEvbEDf6UQ)
-  频道，查看新发布的内容，交流问题，参与社区互动。
-- 加入 [Discord](https://discord.gg/VfBruz4B) 频道，与其他社区成员交流。
-- 加入 Open Assistant Api 微信交流群：
-
-  ![](docs/imgs/wx.png)
-
 ## 特别感谢
 
 我们主要参考和依赖了以下项目:
 
+- [Open Assistant API](https://github.com/MLT-OSS/open-assistant-api): Python实现的Assistant API
 - [OpenOpenAI](https://github.com/transitive-bullshit/OpenOpenAI): Node 实现的 Assistant API
 - [One API](https://github.com/songquanpeng/one-api): 多模型管理工具
 - [R2R](https://github.com/SciPhi-AI/R2R): RAG 引擎
