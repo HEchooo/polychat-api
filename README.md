@@ -141,7 +141,7 @@ According to the OpenAPI/Swagger specification, it allows the integration of var
 
 We mainly referred to and relied on the following projects:
 
-- [Open Assistant API]([https://github.com/transitive-bullshit/OpenOpenAI](https://github.com/MLT-OSS/open-assistant-api)): Open Assistant API
+- [Open Assistant API](https://github.com/MLT-OSS/open-assistant-api): Open Assistant API
 - [OpenOpenAI](https://github.com/transitive-bullshit/OpenOpenAI): Assistant API implemented in Node
 - [One API](https://github.com/songquanpeng/one-api): Multi-model management tool
 - [R2R](https://github.com/SciPhi-AI/R2R): RAG engine
