@@ -10,6 +10,14 @@ const { TextArea } = Input;
 const { Option } = Select;
 const modelList = [
     { label: 'gpt-4', value: 'gpt-4' },
+    { label: 'qwen2.5-lora', value: 'qwen2.5-lora' },
+    { label: 'qwen2.5:7b', value: 'qwen2.5:7b' },
+    { label: 'qwen2.5:14b', value: 'qwen2.5:14b' },
+    { label: 'qwen2.5:32b', value: 'qwen2.5:32b' },
+    { label: 'deepseeki-r1:7b', value: 'deepseek-r1:7b' },
+    { label: 'deepseeki-r1:8b', value: 'deepseek-r1:8b' },
+    { label: 'deepseeki-r1:14b', value: 'deepseek-r1:14b' },
+    { label: 'gpt-4o-mini', value: 'gpt-4o-mini' },
     { label: 'gpt-4-1106-preview', value: 'gpt-4-1106-preview' },
     { label: 'gpt-4o', value: 'gpt-4o' },
     { label: 'gpt-3.5-turbo-16k', value: 'gpt-3.5-turbo-16k' },
