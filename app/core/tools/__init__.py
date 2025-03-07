@@ -1,10 +1,11 @@
 from enum import Enum
 from typing import List
+import logging
 
 from sqlalchemy.orm import Session
 from sqlmodel import select
 
-from app.exceptions.exception import ServerError
+from app.exceptions.exception import InterpreterNotSupported
 from app.models.action import Action
 from app.core.tools.base_tool import BaseTool
 from app.core.tools.external_function_tool import ExternalFunctionTool
@@ -40,5 +41,7 @@ def find_tools(run, session: Session) -> List[BaseTool]:
             action = action_map.get(tool.get("id"))
             tools.append(OpenapiFunctionTool(tool, run.extra_body, action))
         else:
-            raise ServerError(f"Unknown tool type {tool}")
+            logging.error(f'Found an unkown tool type {tool}, ignore it')
+            #raise InterpreterNotSupported(f"Unknown tool type {tool}")
+            continue
     return tools
