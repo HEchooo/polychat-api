@@ -1,5 +1,6 @@
 from functools import partial
 import logging
+import traceback
 
 from typing import List
 from concurrent.futures import Executor
@@ -35,6 +36,7 @@ from app.services.run.run import RunService
 from app.services.run.run_step import RunStepService
 from app.services.token.token import TokenService
 from app.services.token.token_relation import TokenRelationService
+from app.exceptions.exception import InterpreterNotSupported
 
 
 class ThreadRunner:
@@ -60,39 +62,45 @@ class ThreadRunner:
         4. 根据返回结果，生成新的 run step(tool calls 处理) 或者 message
         """
         # TODO: 重构，将 run 的状态变更逻辑放到 RunService 中
-        run = RunService.get_run_sync(session=self.session, run_id=self.run_id)
-        self.event_handler = StreamEventHandler(run_id=self.run_id, is_stream=self.stream)
+        try:
+            run = RunService.get_run_sync(session=self.session, run_id=self.run_id)
+            self.event_handler = StreamEventHandler(run_id=self.run_id, is_stream=self.stream)
 
-        run = RunService.to_in_progress(session=self.session, run_id=self.run_id)
-        self.event_handler.pub_run_in_progress(run)
-        logging.info("processing ThreadRunner task, run_id: %s", self.run_id)
+            run = RunService.to_in_progress(session=self.session, run_id=self.run_id)
+            self.event_handler.pub_run_in_progress(run)
+            logging.info("processing ThreadRunner task, run_id: %s", self.run_id)
 
-        # get memory from assistant metadata
-        # format likes {"memory": {"type": "window", "window_size": 20, "max_token_size": 4000}}
-        ast = AssistantService.get_assistant_sync(session=self.session, assistant_id=run.assistant_id)
-        metadata = ast.metadata_ or {}
-        memory = find_memory(metadata.get("memory", {}))
+            # get memory from assistant metadata
+            # format likes {"memory": {"type": "window", "window_size": 20, "max_token_size": 4000}}
+            ast = AssistantService.get_assistant_sync(session=self.session, assistant_id=run.assistant_id)
+            metadata = ast.metadata_ or {}
+            memory = find_memory(metadata.get("memory", {}))
 
-        instructions = [run.instructions] if run.instructions else [ast.instructions]
-        tools = find_tools(run, self.session)
-        for tool in tools:
-            tool.configure(session=self.session, run=run)
-            instruction_supplement = tool.instruction_supplement()
-            if instruction_supplement:
-                instructions += [instruction_supplement]
-        instruction = "\n".join(instructions)
+            instructions = [run.instructions] if run.instructions else [ast.instructions]
+            tools = find_tools(run, self.session)
+            for tool in tools:
+                tool.configure(session=self.session, run=run)
+                instruction_supplement = tool.instruction_supplement()
+                if instruction_supplement:
+                    instructions += [instruction_supplement]
+            instruction = "\n".join(instructions)
 
-        llm = self.__init_llm_backend(run.assistant_id)
-        loop = True
-        while loop:
-            run_steps = RunStepService.get_run_step_list(
-                session=self.session, run_id=self.run_id, thread_id=run.thread_id
-            )
-            loop = self.__run_step(llm, run, run_steps, instruction, tools, memory)
-
-        # 任务结束
-        self.event_handler.pub_run_completed(run)
-        self.event_handler.pub_done()
+            llm = self.__init_llm_backend(run.assistant_id)
+            loop = True
+            while loop:
+                run_steps = RunStepService.get_run_step_list(
+                    session=self.session, run_id=self.run_id, thread_id=run.thread_id
+                )
+                loop = self.__run_step(llm, run, run_steps, instruction, tools, memory)
+        except InterpreterNotSupported as e:
+            logging.error(f'Do not support the OpenAI interpreter yet: {e}')
+        except Exception as e:
+            logging.error(f'Running failed with error: {e}')
+            print(traceback.format_exc())
+        finally:
+            # 任务结束
+            self.event_handler.pub_run_completed(run)
+            self.event_handler.pub_done()
 
     def __run_step(
         self,
@@ -202,6 +210,7 @@ class ThreadRunner:
                         completed=not external_tool_call_dict,
                     )
                 except Exception as e:
+                    print(traceback.format_exc())
                     RunStepService.to_failed(session=self.session, run_step_id=new_run_step.id, last_error=e)
                     raise e
 

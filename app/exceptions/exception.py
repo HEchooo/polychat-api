@@ -100,6 +100,13 @@ class InternalServerError(BaseHTTPException):
         self.error_code = error_code
         self.type = error_code
 
+class InterpreterNotSupported(Exception):
+    """
+    暂不支持Interpreter
+    """
+
+    def __init__(self, message: str):
+        self.message = message
 
 class ServerError(BaseException):
     """
