@@ -1,7 +1,8 @@
 from langchain.document_loaders import Blob
-from langchain.document_loaders.parsers import BS4HTMLParser, PyMuPDFParser
-from langchain.document_loaders.parsers.generic import MimeTypeBasedParser
-from langchain.document_loaders.parsers.txt import TextParser
+from langchain_community.document_loaders.parsers.html.bs4 import BS4HTMLParser
+from langchain_community.document_loaders.parsers.pdf import PyMuPDFParser
+from langchain_community.document_loaders.parsers.generic import MimeTypeBasedParser
+from langchain_community.document_loaders.parsers.txt import TextParser
 
 PARSER_HANDLERS = {
     "application/pdf": PyMuPDFParser(),

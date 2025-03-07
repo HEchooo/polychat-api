@@ -3,6 +3,7 @@ from typing import Type, Dict, Any, Optional
 
 from langchain.tools import BaseTool as LCBaseTool
 from langchain.tools.render import format_tool_to_openai_function
+from langchain_core.utils.function_calling import convert_to_openai_function
 from pydantic import BaseModel, Field
 
 
@@ -34,7 +35,7 @@ class BaseTool(ABC):
 
     def __init_subclass__(cls) -> None:
         lc_tool = LCTool(name=cls.name, description=cls.description, args_schema=cls.args_schema, _run=lambda x: x)
-        cls.openai_function = {"type": "function", "function": dict(format_tool_to_openai_function(lc_tool))}
+        cls.openai_function = {"type": "function", "function": dict(convert_to_openai_function(lc_tool))}
 
     def configure(self, **kwargs):
         """

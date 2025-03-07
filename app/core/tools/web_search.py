@@ -1,6 +1,6 @@
 from typing import Type
 
-from langchain.utilities import BingSearchAPIWrapper
+from langchain_community.utilities import BingSearchAPIWrapper
 from pydantic import BaseModel, Field
 
 from app.core.tools.base_tool import BaseTool
