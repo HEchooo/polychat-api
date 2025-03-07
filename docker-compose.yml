@@ -7,8 +7,11 @@ services:
     build: .
     volumes:
       - ./volumes/logs/api:/app/logs
+      - ./app:/app_src
     ports:
       - '8086:8086'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       # app
       MODE: api
@@ -52,11 +55,11 @@ services:
       S3_REGION: us-east-1
 
       # file service
-      FILE_SERVICE_MODULE: app.services.file.impl.oss_file.OSSFileService
-      # FILE_SERVICE_MODULE: app.services.file.impl.r2r_file.R2RFileService
+      #FILE_SERVICE_MODULE: app.services.file.impl.oss_file.OSSFileService
+      FILE_SERVICE_MODULE: app.services.file.impl.r2r_file.R2RFileService
 
       # file search tool
-      R2R_BASE_URL: http://r2r:8000
+      R2R_BASE_URL: http://host.docker.internal:7272
       R2R_USERNAME: admin@example.com
       R2R_PASSWORD: change_me_immediately
       R2R_SEARCH_LIMIT: 10
@@ -75,6 +78,8 @@ services:
     build: .
     volumes:
       - ./volumes/logs/worker:/app/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       # app
       MODE: worker
@@ -113,8 +118,8 @@ services:
       S3_REGION: us-east-1
 
       # llm
-      OPENAI_API_BASE:
-      OPENAI_API_KEY:
+      OPENAI_API_BASE: http://172.31.19.187:11343/v1
+      OPENAI_API_KEY: ollama
       LLM_MAX_STEP: 25
 
       # tool
@@ -127,11 +132,11 @@ services:
       WEB_SEARCH_NUM_RESULTS: 5
 
       # file service
-      FILE_SERVICE_MODULE: app.services.file.impl.oss_file.OSSFileService
-      # FILE_SERVICE_MODULE: app.services.file.impl.r2r_file.R2RFileService
+      #FILE_SERVICE_MODULE: app.services.file.impl.oss_file.OSSFileService
+      FILE_SERVICE_MODULE: app.services.file.impl.r2r_file.R2RFileService
 
       # file search tool
-      R2R_BASE_URL: http://r2r:8000
+      R2R_BASE_URL: http://host.docker.internal:7272
       R2R_USERNAME: admin@example.com
       R2R_PASSWORD: change_me_immediately
       R2R_SEARCH_LIMIT: 10
