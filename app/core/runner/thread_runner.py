@@ -96,7 +96,7 @@ class ThreadRunner:
             logging.error(f'Do not support the OpenAI interpreter yet: {e}')
         except Exception as e:
             logging.error(f'Running failed with error: {e}')
-            print(traceback.format_exc())
+            logging.error(traceback.format_exc())
         finally:
             # 任务结束
             self.event_handler.pub_run_completed(run)
@@ -173,7 +173,6 @@ class ThreadRunner:
         )
         response_msg = llm_callback_handler.handle_llm_response(response_stream)
         message_creation_run_step = llm_callback_handler.step
-        logging.info("chat_response_message: %s", response_msg)
 
         if msg_util.is_tool_call(response_msg):
             # tool & tool_call definition dict
@@ -210,7 +209,8 @@ class ThreadRunner:
                         completed=not external_tool_call_dict,
                     )
                 except Exception as e:
-                    print(traceback.format_exc())
+                    logging.error(f'Exception, Error: {e}')
+                    logging.error(traceback.format_exc())
                     RunStepService.to_failed(session=self.session, run_step_id=new_run_step.id, last_error=e)
                     raise e
 
