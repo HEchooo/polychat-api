@@ -9,7 +9,7 @@ from app.services.file.file import FileService
 
 
 class FileSearchToolInput(BaseModel):
-    indexes: List[int] = Field(..., description="file index list to look up in retrieval")
+    indexes: List[int] = Field(..., description="file index list to look up in retrieval, note, use integer that starts from 0 for the list")
     query: str = Field(..., description="query to look up in retrieval")
 
 
@@ -43,7 +43,7 @@ class FileSearchTool(BaseTool):
             file_key = self.__keys[index]
             file_keys.append(file_key)
 
-        files = FileService.search_in_files(query=query, file_keys=file_keys)
+        files = FileService.search_in_files(query=query, file_ids=file_keys)
         return files
 
     def instruction_supplement(self) -> str:
