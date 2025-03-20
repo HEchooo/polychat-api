@@ -29,7 +29,7 @@ class R2RFileService(OSSFileService):
         #     # TODO: 文件去重策略
         #     return ext_file
 
-        file_key = f"{uuid.uuid4()}-{file.filename}"
+        file_id = f"{uuid.uuid4()}"
         with tempfile.NamedTemporaryFile(suffix='_' + file.filename, delete=True) as temp_file:
             tmp_file_path = temp_file.name
 
@@ -37,31 +37,31 @@ class R2RFileService(OSSFileService):
                 while content := await file.read(1024):
                     await f.write(content)
 
-            storage.save_from_path(filename=file_key, local_file_path=tmp_file_path)
+            storage.save_from_path(filename=file_id, local_file_path=tmp_file_path)
 
-            r2r.ingest_file(file_path=tmp_file_path, metadata={"file_key": file_key})
+            r2r.ingest_file(file_path=tmp_file_path, metadata={"id": file_id, 'name': file.filename})
 
         # 存储
-        db_file = File(purpose=purpose, filename=file.filename, bytes=file.size, key=file_key)
+        db_file = File(purpose=purpose, filename=file.filename, bytes=file.size, key=file_id)
         session.add(db_file)
         await session.commit()
         await session.refresh(db_file)
         return db_file
 
     @staticmethod
-    def search_in_files(query: str, file_keys: List[str]) -> dict:
+    def search_in_files(query: str, file_ids: List[str]) -> dict:
         files = {}
-        search_results = r2r.search(query, filters={"file_key": {"$in": file_keys}})
+        search_results = r2r.search(query, filters={"document_id": {"$in": file_ids}})
         if not search_results:
             return files
 
         for doc in search_results:
-            file_key = doc.get("metadata").get("file_key")
-            text = doc.get("text")
+            file_key = doc.get("id")
+            text = doc.get("summary")
             if file_key in files and files[file_key]:
                 files[file_key] += f"\n\n{text}"
             else:
-                files[file_key] = doc.get("text")
+                files[file_key] = text
 
         return files
 
