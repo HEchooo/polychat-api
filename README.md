@@ -109,6 +109,10 @@ Api Base URL: http://127.0.0.1:8086/api/v1
 
 Interface documentation address: http://127.0.0.1:8086/docs
 
+### Visit Playground
+Playground is a web application based on OpenAI Playground where you can test the Assistant API.
+Playground address: http://127.0.0.1:80
+
 ### Complete Usage Example
 
 In this example, an AI assistant is created and run using the official OpenAI client library. If you need to explore other usage methods,
