@@ -44,15 +44,34 @@ def tool_call_result(id, content):
 def is_tool_call(message: ChatCompletionMessage) -> bool:
     return bool(message.tool_calls)
 
-
 def merge_tool_call_delta(tool_calls, tool_call_delta):
-    if len(tool_calls) - 1 >= tool_call_delta.index:
+    if hasattr(tool_call_delta, 'index') and len(tool_calls) - 1 >= tool_call_delta.index:
         tool_call = tool_calls[tool_call_delta.index]
-        tool_call.function.arguments += tool_call_delta.function.arguments
+        
+        if hasattr(tool_call_delta, 'function') and hasattr(tool_call_delta.function, 'arguments') and tool_call_delta.function.arguments is not None:
+            tool_call.function.arguments += tool_call_delta.function.arguments
     else:
-        tool_call = ChatCompletionMessageToolCall(
-            id=tool_call_delta.id,
-            function=Function(name=tool_call_delta.function.name, arguments=tool_call_delta.function.arguments),
-            type=tool_call_delta.type,
-        )
-        tool_calls.append(tool_call)
+        try:
+            if not hasattr(tool_call_delta, 'function'):
+                return
+                
+            arguments = ""
+            if hasattr(tool_call_delta.function, 'arguments') and tool_call_delta.function.arguments is not None:
+                arguments = tool_call_delta.function.arguments
+            
+            name = None
+            if hasattr(tool_call_delta.function, 'name'):
+                name = tool_call_delta.function.name
+            
+            type_value = "function"
+            if hasattr(tool_call_delta, 'type') and tool_call_delta.type is not None:
+                type_value = tool_call_delta.type
+            
+            tool_call = ChatCompletionMessageToolCall(
+                id=tool_call_delta.id if hasattr(tool_call_delta, 'id') else None,
+                function=Function(name=name, arguments=arguments),
+                type=type_value,
+            )
+            tool_calls.append(tool_call)
+        except Exception:
+            pass
