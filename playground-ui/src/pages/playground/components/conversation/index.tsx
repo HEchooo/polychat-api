@@ -27,7 +27,8 @@ const Conversation = ({ assistant }: Props, ref: any) => {
     const [partialJson, setPartialJson] = useState<string>('');
 
     const [runInstructions, setRunInstructions] = useState<string>('');
-
+    const [temperature, setTemperature] = useState<number>(0.7);
+    const [topP, setTopP] = useState<number>(0.95);
     useImperativeHandle(ref, () => {
         return {
             _resetRun() {
@@ -96,7 +97,12 @@ const Conversation = ({ assistant }: Props, ref: any) => {
             setFileList([]);
         }
         const addInstruction = addValue ? { additional_instructions: addValue } : {};
-        runMsgStream(thread_id, { ...{ assistant_id: assistant }, ...addInstruction });
+        runMsgStream(thread_id, { 
+            ...{ assistant_id: assistant }, 
+            ...addInstruction,
+            temperature: temperature,
+            top_p: topP
+        });
         singleRequestFlag.current = false;
         setRunDisabled(false);
     };
@@ -294,12 +300,37 @@ const Conversation = ({ assistant }: Props, ref: any) => {
                                 <Button ref={hiddenButtonRef} style={{ display: 'none' }} />
                             </Upload>
                         </div>
-
-                        <div className="input-button-group">
-                            <Button onClick={handleVisibleButtonClick}>
-                                <PaperClipOutlined />
-                            </Button>
-                            <div />
+                        <div className="model-params">
+                        <div className="param-input">
+                            <span>Temperature:</span>
+                            <Input
+                                type="number"
+                                min={0}
+                                max={2}
+                                step={0.1}
+                                value={temperature}
+                                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                                style={{ width: 80 }}
+                            />
+                        </div>
+                        <div className="param-input">
+                            <span>Top P:</span>
+                            <Input
+                                type="number"
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                value={topP}
+                                onChange={(e) => setTopP(parseFloat(e.target.value))}
+                                style={{ width: 80 }}
+                            />
+                        </div>
+                            </div>
+                                <div className="input-button-group">
+                                    <Button onClick={handleVisibleButtonClick}>
+                                        <PaperClipOutlined />
+                                    </Button>
+                                    <div />
                             <div style={{ display: 'flex' }}>
                                 {/* <Button className="run" onClick={test2}>
                                     Run
