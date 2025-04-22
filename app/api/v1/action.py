@@ -77,7 +77,6 @@ async def delete_action(*, session: AsyncSession = Depends(get_async_session), a
 )
 async def api_run_action(
     *,
-    request: Request,
     session: AsyncSession = Depends(get_async_session), 
     action_id: str, 
     body: ActionRunRequest
