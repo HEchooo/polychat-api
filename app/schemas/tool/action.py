@@ -81,7 +81,6 @@ class ActionBulkCreateRequest(BaseModel):
         Authentication(type=AuthenticationType.none), description="The action API authentication."
     )
 
-    support_streaming: bool = Field(default=True)
 
     use_for_everyone: bool = Field(default=False)
 

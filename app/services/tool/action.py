@@ -45,7 +45,6 @@ class ActionService:
             action = ActionService.build_action_struct(schema)
             action.authentication = body.authentication.dict()
             action.use_for_everyone = body.use_for_everyone
-            action.support_streaming = body.support_streaming
             actions.append(action)
             auth_policy.insert_token_rel(
                 session=session, token_id=token_id, relation_type=RelationType.Action, relation_id=str(action.id)

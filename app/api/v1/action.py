@@ -83,7 +83,7 @@ async def api_run_action(
 ):
     action = await ActionService.get_action(session=session, action_id=action_id)
     
-    use_stream = getattr(body, 'stream', False) and getattr(action, 'support_streaming', False)
+    use_stream = True
     
     if use_stream:
         return StreamingResponse(
