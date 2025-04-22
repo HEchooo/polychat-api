@@ -27,6 +27,7 @@ class ActionBase(BaseModel):
     function_def: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     use_for_everyone: bool = Field(default=False, nullable=False)
     object: str = Field(nullable=False, default="action")
+    support_streaming: bool = Field(default=False, nullable=False) 
 
 
 class Action(ActionBase, PrimaryKeyMixin, TimeStampMixin, table=True):

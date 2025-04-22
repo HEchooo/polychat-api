@@ -81,6 +81,8 @@ class ActionBulkCreateRequest(BaseModel):
         Authentication(type=AuthenticationType.none), description="The action API authentication."
     )
 
+    support_streaming: bool = Field(default=True)
+
     use_for_everyone: bool = Field(default=False)
 
     @model_validator(mode="before")
@@ -133,6 +135,7 @@ class ActionUpdateRequest(BaseModel):
 class ActionRunRequest(BaseModel):
     parameters: Optional[Dict[str, Any]] = Field(None)
     headers: Optional[Dict[str, Any]] = Field(None)
+    stream: Optional[bool] = Field(True)  
 
 
 # This class utilizes code from the Open Source Project TaskingAI.

@@ -1,6 +1,7 @@
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -72,13 +73,34 @@ async def delete_action(*, session: AsyncSession = Depends(get_async_session), a
 
 @router.post(
     "/{action_id}/run",
-    response_model=BaseSuccessDataResponse,
+    response_model=None,  # 移除响应模型，因为流式响应与标准响应模型不兼容
 )
-async def api_run_action(*, session: AsyncSession = Depends(get_async_session), action_id: str, body: ActionRunRequest):
-    response: Dict = await ActionService.run_action(
-        session=session,
-        action_id=action_id,
-        parameters=body.parameters,
-        headers=body.headers,
-    )
-    return BaseSuccessDataResponse(data=response)
+async def api_run_action(
+    *,
+    request: Request,
+    session: AsyncSession = Depends(get_async_session), 
+    action_id: str, 
+    body: ActionRunRequest
+):
+    action = await ActionService.get_action(session=session, action_id=action_id)
+    
+    use_stream = getattr(body, 'stream', False) and getattr(action, 'support_streaming', False)
+    
+    if use_stream:
+        return StreamingResponse(
+            ActionService.run_action_stream(
+                session=session,
+                action_id=action_id,
+                parameters=body.parameters or {},
+                headers=body.headers or {},
+            ),
+            media_type="text/plain" 
+        )
+    else:
+        response: Dict = await ActionService.run_action(
+            session=session,
+            action_id=action_id,
+            parameters=body.parameters or {},
+            headers=body.headers or {},
+        )
+        return BaseSuccessDataResponse(data=response)

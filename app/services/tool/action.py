@@ -45,6 +45,7 @@ class ActionService:
             action = ActionService.build_action_struct(schema)
             action.authentication = body.authentication.dict()
             action.use_for_everyone = body.use_for_everyone
+            action.support_streaming = body.support_streaming
             actions.append(action)
             auth_policy.insert_token_rel(
                 session=session, token_id=token_id, relation_type=RelationType.Action, relation_id=str(action.id)
@@ -188,6 +189,37 @@ class ActionService:
                 "function_def": function_def.dict(exclude_none=True),
                 "openapi_schema": openapi_dict,
             }
+        )
+
+
+    @staticmethod
+    async def run_action_stream(
+        *,
+        session: AsyncSession,
+        action_id: str,
+        parameters: Dict,
+        headers: Dict,
+    ):
+        """
+        以流式方式运行action
+        :param session: 数据库会话
+        :param action_id: action ID
+        :param parameters: API调用的参数
+        :param headers: API调用的请求头
+        :return: 异步生成器，产生流式响应内容
+        """
+        action: Action = await ActionService.get_action(session=session, action_id=action_id)
+        
+        return call_action_api_stream(
+            url=action.url,
+            method=ActionMethod(action.method),
+            path_param_schema=action_param_dict_to_schema(action.path_param_schema),
+            query_param_schema=action_param_dict_to_schema(action.query_param_schema),
+            body_param_schema=action_param_dict_to_schema(action.body_param_schema),
+            body_type=ActionBodyType(action.body_type),
+            parameters=parameters,
+            headers=headers,
+            authentication=Authentication(**action.authentication),
         )
 
     @staticmethod

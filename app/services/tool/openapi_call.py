@@ -155,3 +155,85 @@ def call_action_api(
         return {"status": 500, "error": f"Failed to make the API call: {e}"}
     except Exception:
         return {"status": 500, "error": "Failed to make the API call"}
+
+async def call_action_api_stream(
+    url: str,
+    method: ActionMethod,
+    path_param_schema: Dict[str, ActionParam],
+    query_param_schema: Dict[str, ActionParam],
+    body_type: ActionBodyType,
+    body_param_schema: Dict[str, ActionParam],
+    parameters: Dict,
+    headers: Dict,
+    authentication: Authentication,
+):
+    authentication.decrypt()
+    
+    if path_param_schema:
+        path_params = _process_parameters(path_param_schema, parameters)
+        for param_name, param_value in path_params.items():
+            url = url.replace(f"{{{param_name}}}", urllib.parse.quote(str(param_value)))
+
+    query_params = {}
+    if query_param_schema:
+        query_params = _process_parameters(query_param_schema, parameters)
+        for param_name, param_value in query_params.items():
+            if isinstance(param_value, bool):
+                query_params[param_name] = str(param_value).lower()
+
+
+    body = None
+    if body_type != ActionBodyType.NONE:
+        body = _process_parameters(body_param_schema, parameters)
+
+    prepared_headers = _prepare_headers(authentication, headers)
+    
+    if body_type == ActionBodyType.JSON:
+        prepared_headers["Content-Type"] = "application/json"
+    elif body_type == ActionBodyType.FORM:
+        prepared_headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+    request_kwargs = {"headers": prepared_headers}
+
+    if query_params:
+        request_kwargs["params"] = query_params
+
+    if os.environ.get("HTTP_PROXY_URL"):
+        request_kwargs["proxy"] = os.environ.get("HTTP_PROXY_URL")
+
+    if body_type == ActionBodyType.JSON:
+        request_kwargs["json"] = body
+    elif body_type == ActionBodyType.FORM:
+        request_kwargs["data"] = body
+
+    logging.info(f"call_action_api_stream url={url} request kwargs: {request_kwargs}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                method=method.value, 
+                url=url, 
+                timeout=60, 
+                **request_kwargs
+            ) as response:
+                if response.status_code >= 400:
+                    error_content = await response.aread()
+                    error_message = f"API调用失败，状态码: {response.status_code}"
+                    if error_content:
+                        try:
+                            error_message += f", 错误信息: {error_content.decode('utf-8')}"
+                        except:
+                            error_message += f", 错误信息: (无法解码)"
+                    yield error_message
+                    return
+
+                async for chunk in response.aiter_bytes():
+                    if chunk:
+                        try:
+                            yield chunk.decode('utf-8', errors='replace')
+                        except:
+                            yield chunk
+    except Exception as e:
+        error_message = f"流式API调用失败: {str(e)}"
+        logging.error(error_message)
+        yield error_message
