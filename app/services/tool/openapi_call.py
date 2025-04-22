@@ -181,7 +181,6 @@ async def call_action_api_stream(
             if isinstance(param_value, bool):
                 query_params[param_name] = str(param_value).lower()
 
-
     body = None
     if body_type != ActionBodyType.NONE:
         body = _process_parameters(body_param_schema, parameters)
@@ -193,47 +192,35 @@ async def call_action_api_stream(
     elif body_type == ActionBodyType.FORM:
         prepared_headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-    request_kwargs = {"headers": prepared_headers}
-
-    if query_params:
-        request_kwargs["params"] = query_params
-
-    if os.environ.get("HTTP_PROXY_URL"):
-        request_kwargs["proxy"] = os.environ.get("HTTP_PROXY_URL")
-
-    if body_type == ActionBodyType.JSON:
-        request_kwargs["json"] = body
-    elif body_type == ActionBodyType.FORM:
-        request_kwargs["data"] = body
-
-    logging.info(f"call_action_api_stream url={url} request kwargs: {request_kwargs}")
-
-    try:
-        async with httpx.AsyncClient() as client:
-            async with client.stream(
-                method=method.value, 
-                url=url, 
-                timeout=60, 
-                **request_kwargs
-            ) as response:
-                if response.status_code >= 400:
-                    error_content = await response.aread()
-                    error_message = f"API调用失败，状态码: {response.status_code}"
-                    if error_content:
-                        try:
-                            error_message += f", 错误信息: {error_content.decode('utf-8')}"
-                        except:
-                            error_message += f", 错误信息: (无法解码)"
-                    yield error_message
-                    return
-
-                async for chunk in response.aiter_bytes():
-                    if chunk:
-                        try:
-                            yield chunk.decode('utf-8', errors='replace')
-                        except:
-                            yield chunk
-    except Exception as e:
-        error_message = f"流式API调用失败: {str(e)}"
-        logging.error(error_message)
-        yield error_message
+    async def generate():
+        try:
+            async with aiohttp.ClientSession() as session:
+                if method == ActionMethod.GET:
+                    async with session.get(url, params=query_params, headers=prepared_headers) as response:
+                        async for chunk in response.content.iter_any():
+                            if chunk:
+                                yield chunk
+                elif method == ActionMethod.POST:
+                    if body_type == ActionBodyType.JSON:
+                        async with session.post(url, params=query_params, json=body, headers=prepared_headers) as response:
+                            async for chunk in response.content.iter_any():
+                                if chunk:
+                                    yield chunk
+                    elif body_type == ActionBodyType.FORM:
+                        async with session.post(url, params=query_params, data=body, headers=prepared_headers) as response:
+                            async for chunk in response.content.iter_any():
+                                if chunk:
+                                    yield chunk
+                    else:
+                        async with session.post(url, params=query_params, headers=prepared_headers) as response:
+                            async for chunk in response.content.iter_any():
+                                if chunk:
+                                    yield chunk
+                else:
+                    yield f"不支持的HTTP方法: {method}".encode('utf-8')
+        except Exception as e:
+            error_message = f"流式API调用失败: {str(e)}"
+            logging.error(error_message)
+            yield error_message.encode('utf-8')
+    
+    return generate()

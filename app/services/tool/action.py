@@ -16,7 +16,7 @@ from app.schemas.tool.action import (
     ActionBodyType,
 )
 from app.schemas.tool.authentication import Authentication
-from app.services.tool.openapi_call import call_action_api
+from app.services.tool.openapi_call import call_action_api, call_action_api_stream
 from app.services.tool.openapi_utils import (
     split_openapi_schema,
     replace_openapi_refs,
@@ -201,11 +201,6 @@ class ActionService:
     ):
         """
         以流式方式运行action
-        :param session: 数据库会话
-        :param action_id: action ID
-        :param parameters: API调用的参数
-        :param headers: API调用的请求头
-        :return: 异步生成器，产生流式响应内容
         """
         action: Action = await ActionService.get_action(session=session, action_id=action_id)
         
