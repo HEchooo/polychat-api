@@ -60,7 +60,7 @@ aiofiles = "^24.1.0"
 r2r = "^3.4.0"
 pyjwt = "^2.9.0"
 deprecated = "^1.2.16"
-langchain-mcp-adapters = "^0.0.9"
+# langchain-mcp-adapters = "^0.0.9"
 mcp = ">=1.4.1,<1.7"
 #langchain_community = "^0.3.16"
 
