@@ -1,36 +1,52 @@
 from typing import Type
-
-from langchain_community.utilities import BingSearchAPIWrapper
+import subprocess
+import sys
+import importlib.util
 from pydantic import BaseModel, Field
 
 from app.core.tools.base_tool import BaseTool
 from config.llm import tool_settings
 
+def ensure_package_installed(package_name):
+    package_import_name = package_name.replace('-', '_')
+    if importlib.util.find_spec(package_import_name) is None:
+        print(f"正在安装 {package_name}...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+        print(f"{package_name} 安装完成")
+    else:
+        print(f"{package_name} 已安装")
+
+
+ensure_package_installed('duckduckgo_search')
+
+from duckduckgo_search import DDGS
 
 class WebSearchToolInput(BaseModel):
     query: str = Field(
         ...,
-        description="Search query. Use a format suitable for Bing and, if necessary, "
-        "use Bing's advanced search function",
+        description="Search query. Use a format suitable for duckduckgo and, if necessary, "
     )
-
 
 class WebSearchTool(BaseTool):
     name: str = "web_search"
     description: str = (
-        "A tool for performing a Bing search and extracting snippets and webpages "
-        "when you need to search for something you don't know or when your information "
-        "is not up to date. "
-        "Input should be a search query."
+        "A tool for performing web searches and extracting snippets of web pages,"
+        "Use when you need to search for unknown information or when your information is not up to date."
+        "The input should be a search query."
     )
-
+    
     args_schema: Type[BaseModel] = WebSearchToolInput
-
-    _bing_search_api_wrapper = BingSearchAPIWrapper(
-        bing_search_url=tool_settings.BING_SEARCH_URL,
-        bing_subscription_key=tool_settings.BING_SUBSCRIPTION_KEY,
-        k=tool_settings.WEB_SEARCH_NUM_RESULTS,
-    )
-
+    
     def run(self, query: str) -> dict:
-        return self._bing_search_api_wrapper.results(query=query, num_results=tool_settings.WEB_SEARCH_NUM_RESULTS)
+        ensure_package_installed('duckduckgo-search')
+        
+        ddgs = DDGS()
+        results = ddgs.text(
+            query, 
+            region='wt-wt',
+            safesearch='moderate', 
+            timelimit=None, 
+            max_results=tool_settings.WEB_SEARCH_NUM_RESULTS
+        )
+        
+        return results

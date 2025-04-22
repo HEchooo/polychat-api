@@ -7,3 +7,4 @@ volumes/
 logs
 .vscode
 .DS_Store
+myenv/

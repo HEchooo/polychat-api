@@ -31,6 +31,10 @@ class ToolSettings(BaseSettings):
     R2R_PASSWORD: str = None
     R2R_SEARCH_LIMIT: int = 10
 
+    MCP_ENABLED: bool = True
+    MCP_SERVER_TIMEOUT: int = 30
+    MCP_FALLBACK_ENABLED: bool = True
+
     class Config(object):
         env_file = ".env"
 

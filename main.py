@@ -8,6 +8,7 @@ from app.providers import (
     pagination_provider,
     route_provider,
     auth_provider,
+    mcp_provider, 
 )
 from config.config import settings
 import uvicorn
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
     register(_app, handle_exception)
     register(_app, pagination_provider)
     register(_app, auth_provider)
+    register(_app, mcp_provider)  
 
     boot(_app, route_provider)
 

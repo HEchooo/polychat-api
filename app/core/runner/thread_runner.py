@@ -196,12 +196,55 @@ class ThreadRunner:
             # 为减少线程同步逻辑，依次处理内/外 tool_call 调用
             if internal_tool_calls:
                 try:
-                    tool_calls_with_outputs = run_with_executor(
-                        executor=ThreadRunner.tool_executor,
-                        func=internal_tool_call_invoke,
-                        tasks=internal_tool_calls,
-                        timeout=tool_settings.TOOL_WORKER_EXECUTION_TIMEOUT,
-                    )
+                    mcp_tool_calls = []
+                    regular_tool_calls = []
+
+                    for tool, tool_call_dict in internal_tool_calls:
+                        if hasattr(tool, 'name') and tool.name.startswith('mcp_'):
+                            mcp_tool_calls.append((tool, tool_call_dict))
+                        else:
+                            regular_tool_calls.append((tool, tool_call_dict))
+
+                    regular_tool_results = []
+                    if regular_tool_calls:
+                        regular_tool_results = run_with_executor(
+                            executor=ThreadRunner.tool_executor,
+                            func=internal_tool_call_invoke,
+                            tasks=regular_tool_calls,
+                            timeout=tool_settings.TOOL_WORKER_EXECUTION_TIMEOUT,
+                        )
+
+                    mcp_tool_results = []
+                    if mcp_tool_calls:
+                        for tool, tool_call_dict in mcp_tool_calls:
+                            try:
+                                result = self.__invoke_mcp_tool(tool, tool_call_dict)
+                                mcp_tool_results.append(result)
+                            except Exception as e:
+                                logging.error(f"Error invoking MCP tool {tool.name}: {e}")
+                                if hasattr(tool, '_fallback_to_original'):
+                                    try:
+                                        args = json.loads(tool_call_dict["function"]["arguments"])
+                                        output = tool._fallback_to_original(**args)
+                                        tool_call_dict["function"]["output"] = json.dumps(output, ensure_ascii=False)
+                                        mcp_tool_results.append(tool_call_dict)
+                                    except Exception as fallback_error:
+                                        logging.error(f"Fallback failed for MCP tool {tool.name}: {fallback_error}")
+                                        tool_call_dict["function"]["output"] = json.dumps(
+                                            {"error": f"Tool execution failed: {str(e)}"}, 
+                                            ensure_ascii=False
+                                        )
+                                        mcp_tool_results.append(tool_call_dict)
+                                else:
+                                    tool_call_dict["function"]["output"] = json.dumps(
+                                        {"error": f"Tool execution failed: {str(e)}"}, 
+                                        ensure_ascii=False
+                                    )
+                                    mcp_tool_results.append(tool_call_dict)
+
+
+                    tool_calls_with_outputs = regular_tool_results + mcp_tool_results + external_tool_call_dict
+                    
                     new_run_step = RunStepService.update_step_details(
                         session=self.session,
                         run_step_id=new_run_step.id,
@@ -251,6 +294,46 @@ class ThreadRunner:
             self.event_handler.pub_run_step_completed(new_step)
 
         return False
+
+    def __invoke_mcp_tool(self, tool: BaseTool, tool_call_dict: dict) -> dict:
+        """调用 MCP 工具
+        
+        Args:
+            tool: 工具实例
+            tool_call_dict: 工具调用数据
+            
+        Returns:
+            处理后的工具调用数据
+        """
+        import json
+        
+        args = json.loads(tool_call_dict["function"]["arguments"])
+        
+        try:
+            if tool.name == "mcp_file_search":
+                indexes = args.get("indexes", [])
+                query = args.get("query", "")
+                
+                result = tool.run(indexes=indexes, query=query)
+                tool_call_dict["function"]["output"] = json.dumps(result, ensure_ascii=False)
+                
+            elif tool.name == "mcp_web_search":
+                query = args.get("query", "")
+                
+                result = tool.run(query=query)
+                tool_call_dict["function"]["output"] = json.dumps(result, ensure_ascii=False)
+                
+            else:
+                result = tool.run(**args)
+                tool_call_dict["function"]["output"] = json.dumps(result, ensure_ascii=False)
+                
+        except Exception as e:
+            logging.error(f"MCP tool call failed: {e}")
+            tool_call_dict["function"]["output"] = json.dumps(
+                {"error": f"Tool execution failed: {str(e)}"}, ensure_ascii=False
+            )
+        
+        return tool_call_dict
 
     def __init_llm_backend(self, assistant_id):
         if settings.AUTH_ENABLE:

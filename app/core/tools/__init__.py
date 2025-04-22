@@ -13,15 +13,23 @@ from app.core.tools.openapi_function_tool import OpenapiFunctionTool
 from app.core.tools.file_search_tool import FileSearchTool
 from app.core.tools.web_search import WebSearchTool
 
+from app.core.tools.mcp.client import MCPFileSearchTool, MCPWebSearchTool
+
 
 class AvailableTools(str, Enum):
     FILE_SEARCH = "file_search"
     WEB_SEARCH = "web_search"
 
+    MCP_FILE_SEARCH = "mcp_file_search"
+    MCP_WEB_SEARCH = "mcp_web_search"
+
 
 TOOLS = {
     AvailableTools.FILE_SEARCH: FileSearchTool,
     AvailableTools.WEB_SEARCH: WebSearchTool,
+
+    AvailableTools.MCP_FILE_SEARCH: MCPFileSearchTool,
+    AvailableTools.MCP_WEB_SEARCH: MCPWebSearchTool,
 }
 
 
@@ -41,7 +49,6 @@ def find_tools(run, session: Session) -> List[BaseTool]:
             action = action_map.get(tool.get("id"))
             tools.append(OpenapiFunctionTool(tool, run.extra_body, action))
         else:
-            logging.error(f'Found an unkown tool type {tool}, ignore it')
-            #raise InterpreterNotSupported(f"Unknown tool type {tool}")
+            logging.error(f'Found an unknown tool type {tool}, ignore it')
             continue
     return tools

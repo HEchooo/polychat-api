@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     AUTH_ADMIN_TOKEN: str = "admin"
     AES_ENCRYPTION_KEY: str = "xxx"
 
+    MCP_ENABLED: bool = True
+    MCP_LOG_LEVEL: str = "INFO"
+
     class Config:
         env_prefix = "APP_"
         env_file = ".env"
