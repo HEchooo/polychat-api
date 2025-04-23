@@ -218,7 +218,7 @@ class ThreadRunner:
                             new_call["function"] = function
                             cleaned.append(new_call)
                         return cleaned
-
+                    tool_calls_with_outputs_full = tool_calls_with_outputs         
                     tool_calls_with_outputs_clean = strip_non_serializable_fields(tool_calls_with_outputs)
 
                     new_run_step = RunStepService.update_step_details(
@@ -229,7 +229,7 @@ class ThreadRunner:
                     )
 
                     if not external_tool_call_dict:
-                        tool_call = tool_calls_with_outputs[0]["function"]
+                        tool_call = tool_calls_with_outputs_full[0]["function"]
                         logging.info(f"Tool call: {tool_call}")
                         # tool_output_stream = tool_call_output({"function": tool_call})
                         tool_output_stream = tool_call["function"].get("_stream")
