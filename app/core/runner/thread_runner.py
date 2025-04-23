@@ -2,7 +2,7 @@ from functools import partial
 import logging
 import traceback
 
-from typing import List
+from typing import List, Iterator
 from concurrent.futures import Executor
 
 from sqlalchemy.orm import Session
@@ -37,6 +37,9 @@ from app.services.run.run_step import RunStepService
 from app.services.token.token import TokenService
 from app.services.token.token_relation import TokenRelationService
 from app.exceptions.exception import InterpreterNotSupported
+from openai.types.chat import ChatCompletionChunk, ChatCompletion
+from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
+
 
 
 class ThreadRunner:
@@ -111,25 +114,17 @@ class ThreadRunner:
         tools: List[BaseTool],
         memory: Memory,
     ):
-        """
-        执行 run step
-        """
         logging.info("step %d is running", len(run_steps) + 1)
 
         assistant_system_message = [msg_util.system_message(instruction)]
-
-        # 获取已有 message 上下文记录
         chat_messages = self.__generate_chat_messages(
             MessageService.get_message_list(session=self.session, thread_id=run.thread_id)
         )
-
-        tool_call_messages = []
-        for step in run_steps:
-            if step.type == "tool_calls" and step.status == "completed":
-                tool_call_messages += self.__convert_assistant_tool_calls_to_chat_messages(step)
-
-        # memory
-        messages = assistant_system_message + memory.integrate_context(chat_messages) + tool_call_messages 
+        tool_call_messages = [
+            msg for step in run_steps if step.type == "tool_calls" and step.status == "completed"
+            for msg in self.__convert_assistant_tool_calls_to_chat_messages(step)
+        ]
+        messages = assistant_system_message + memory.integrate_context(chat_messages) + tool_call_messages
 
         response_stream = llm.run(
             messages=messages,
@@ -190,32 +185,89 @@ class ThreadRunner:
             self.event_handler.pub_run_step_created(new_run_step)
             self.event_handler.pub_run_step_in_progress(new_run_step)
 
-            internal_tool_calls = list(filter(lambda _tool_calls: _tool_calls[0] is not None, tool_calls))
-            external_tool_call_dict = [tool_call_dict for tool, tool_call_dict in tool_calls if tool is None]
+            internal_tool_calls = [(tool, call) for tool, call in tool_calls if tool is not None]
+            external_tool_call_dict = [call for tool, call in tool_calls if tool is None]
 
             # 为减少线程同步逻辑，依次处理内/外 tool_call 调用
             if internal_tool_calls:
                 try:
-                    tool_calls_with_outputs = run_with_executor(
-                        executor=ThreadRunner.tool_executor,
+                    tool_outputs = run_with_executor(
+                        executor=self.tool_executor,
                         func=internal_tool_call_invoke,
                         tasks=internal_tool_calls,
                         timeout=tool_settings.TOOL_WORKER_EXECUTION_TIMEOUT,
                     )
+
+                    tool_name = tool_outputs[0]["function"].get("name")
+                    is_special_stream_tool = tool_name in tool_settings.SPECIAL_STREAM_TOOLS
+
+                    if is_special_stream_tool:
+                        tool_stream = tool_outputs[0]["function"]["_stream"]
+
+                        def wrap_stream(tool_chunk_iter):
+                            for chunk in tool_chunk_iter:
+                                if chunk.strip():
+                                    for char in chunk:
+                                        yield ChatCompletionChunk(
+                                            id="chatcmpl",
+                                            object="chat.completion.chunk",
+                                            created=0,
+                                            model="model",
+                                            choices=[
+                                                Choice(
+                                                    index=0,
+                                                    delta=ChoiceDelta(content=char, role="assistant"),
+                                                    finish_reason=None,
+                                                )
+                                            ],
+                                        )
+
+                            yield ChatCompletionChunk(
+                                id="chatcmpl",
+                                object="chat.completion.chunk",
+                                created=0,
+                                model="model",
+                                choices=[
+                                    Choice(index=0, delta=ChoiceDelta(content=None), finish_reason="stop")
+                                ],
+                            )
+
+                        response_msg = llm_callback_handler.handle_llm_response(wrap_stream(tool_stream))
+
+                        new_message = MessageService.modify_message_sync(
+                            session=self.session,
+                            thread_id=run.thread_id,
+                            message_id=llm_callback_handler.message.id,
+                            body=MessageUpdate(content=response_msg.content),
+                        )
+                        self.event_handler.pub_message_completed(new_message)
+
+                        new_step = RunStepService.update_step_details(
+                            session=self.session,
+                            run_step_id=llm_callback_handler.step.id,  
+                            step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
+                            completed=True,
+                        )
+                        RunService.to_completed(session=self.session, run_id=run.id)
+                        self.event_handler.pub_run_step_completed(new_step)
+                        self.event_handler.pub_run_completed(run)
+
+                        return False
+
                     new_run_step = RunStepService.update_step_details(
                         session=self.session,
                         run_step_id=new_run_step.id,
-                        step_details={"type": "tool_calls", "tool_calls": tool_calls_with_outputs},
+                        step_details={"type": "tool_calls", "tool_calls": tool_outputs},
                         completed=not external_tool_call_dict,
                     )
+
                 except Exception as e:
-                    logging.error(f'Exception, Error: {e}')
+                    logging.error(f'Tool stream failed: {e}')
                     logging.error(traceback.format_exc())
                     RunStepService.to_failed(session=self.session, run_step_id=new_run_step.id, last_error=e)
                     raise e
 
             if external_tool_call_dict:
-                # run 设置为 action required，等待业务完成更新并再次拉起
                 run = RunService.to_requires_action(
                     session=self.session,
                     run_id=run.id,
@@ -231,24 +283,23 @@ class ThreadRunner:
             else:
                 self.event_handler.pub_run_step_completed(new_run_step)
                 return True
-        else:
-            # 无 tool call 信息，message 生成结束，更新状态
-            new_message = MessageService.modify_message_sync(
-                session=self.session,
-                thread_id=run.thread_id,
-                message_id=llm_callback_handler.message.id,
-                body=MessageUpdate(content=response_msg.content),
-            )
-            self.event_handler.pub_message_completed(new_message)
 
-            new_step = RunStepService.update_step_details(
-                session=self.session,
-                run_step_id=message_creation_run_step.id,
-                step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
-                completed=True,
-            )
-            RunService.to_completed(session=self.session, run_id=run.id)
-            self.event_handler.pub_run_step_completed(new_step)
+        new_message = MessageService.modify_message_sync(
+            session=self.session,
+            thread_id=run.thread_id,
+            message_id=llm_callback_handler.message.id,
+            body=MessageUpdate(content=response_msg.content),
+        )
+        self.event_handler.pub_message_completed(new_message)
+
+        new_step = RunStepService.update_step_details(
+            session=self.session,
+            run_step_id=message_creation_run_step.id,
+            step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
+            completed=True,
+        )
+        RunService.to_completed(session=self.session, run_id=run.id)
+        self.event_handler.pub_run_step_completed(new_step)
 
         return False
 

@@ -1,10 +1,12 @@
+import logging
 from app.models.action import Action
 from app.core.tools.base_tool import BaseTool
 from app.exceptions.exception import ResourceNotFoundError
-from app.services.tool.openapi_call import call_action_api
+from app.services.tool.openapi_call import call_action_api, call_action_api_stream
 from app.schemas.tool.action import ActionMethod, ActionBodyType
 from app.services.tool.openapi_utils import action_param_dict_to_schema
 from app.schemas.tool.authentication import Authentication
+from config.llm import tool_settings
 
 
 class OpenapiFunctionTool(BaseTool):
@@ -17,6 +19,7 @@ class OpenapiFunctionTool(BaseTool):
     description = ""
     args_schema = None
     action: Action = None
+    is_stream = False
 
     def __init__(self, definition: dict, extra_body: dict, action: Action) -> None:
         if definition["type"] != "action" or "id" not in definition:
@@ -35,18 +38,36 @@ class OpenapiFunctionTool(BaseTool):
         self.action = action
         self.openai_function = {"type": "function", "function": action.function_def}
         self.name = action.function_def["name"]
+        if self.name in tool_settings.SPECIAL_STREAM_TOOLS:
+            logging.info(f"{self.name} should be stream")
+            self.is_stream = True
 
-    def run(self, **arguments: dict) -> dict:
+    def run(self, **arguments: dict):
         action = self.action
-        response = call_action_api(
-            url=action.url,
-            method=ActionMethod(action.method),
-            path_param_schema=action_param_dict_to_schema(action.path_param_schema),
-            query_param_schema=action_param_dict_to_schema(action.query_param_schema),
-            body_param_schema=action_param_dict_to_schema(action.body_param_schema),
-            body_type=ActionBodyType(action.body_type),
-            parameters=arguments,
-            headers={},
-            authentication=Authentication(**action.authentication),
-        )
-        return response
+
+        if self.is_stream:
+            logging.debug(f"{self.name} is stream")
+            return call_action_api_stream(
+                url=action.url,
+                method=ActionMethod(action.method),
+                path_param_schema=action_param_dict_to_schema(action.path_param_schema),
+                query_param_schema=action_param_dict_to_schema(action.query_param_schema),
+                body_type=ActionBodyType(action.body_type),
+                body_param_schema=action_param_dict_to_schema(action.body_param_schema),
+                parameters=arguments,
+                headers={},
+                authentication=Authentication(**action.authentication),
+            )
+        else:
+            logging.debug(f"{self.name} is not stream")
+            return call_action_api(
+                url=action.url,
+                method=ActionMethod(action.method),
+                path_param_schema=action_param_dict_to_schema(action.path_param_schema),
+                query_param_schema=action_param_dict_to_schema(action.query_param_schema),
+                body_param_schema=action_param_dict_to_schema(action.body_param_schema),
+                body_type=ActionBodyType(action.body_type),
+                parameters=arguments,
+                headers={},
+                authentication=Authentication(**action.authentication),
+            )

@@ -21,6 +21,8 @@ const modelList = [
     { label: 'qwen-turbo', value: 'qwen-turbo' },
     { label: 'qwen-plus', value: 'qwen-plus' },
     { label: 'qwen-max', value: 'qwen-max' },
+    { label: 'qwen2.5-7b-instruct-1m', value: 'qwen2.5-7b-instruct-1m' },
+    { label: 'qwen2.5-14b-instruct-1m', value: 'qwen2.5-14b-instruct-1m' },
     { label: 'deepseeki-r1:7b', value: 'deepseek-r1:7b' },
     { label: 'deepseeki-r1:8b', value: 'deepseek-r1:8b' },
     { label: 'deepseeki-r1:14b', value: 'deepseek-r1:14b' },
