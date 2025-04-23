@@ -1,7 +1,7 @@
 from app.models.action import Action
 from app.core.tools.base_tool import BaseTool
 from app.exceptions.exception import ResourceNotFoundError
-from app.services.tool.openapi_call import call_action_api
+from app.services.tool.openapi_call import call_action_api, call_action_api_stream
 from app.schemas.tool.action import ActionMethod, ActionBodyType
 from app.services.tool.openapi_utils import action_param_dict_to_schema
 from app.schemas.tool.authentication import Authentication
@@ -38,15 +38,27 @@ class OpenapiFunctionTool(BaseTool):
 
     def run(self, **arguments: dict) -> dict:
         action = self.action
-        response = call_action_api(
+        # response = call_action_api(
+        #     url=action.url,
+        #     method=ActionMethod(action.method),
+        #     path_param_schema=action_param_dict_to_schema(action.path_param_schema),
+        #     query_param_schema=action_param_dict_to_schema(action.query_param_schema),
+        #     body_param_schema=action_param_dict_to_schema(action.body_param_schema),
+        #     body_type=ActionBodyType(action.body_type),
+        #     parameters=arguments,
+        #     headers={},
+        #     authentication=Authentication(**action.authentication),
+        # )
+        # return response
+
+        return call_action_api_stream(
             url=action.url,
             method=ActionMethod(action.method),
             path_param_schema=action_param_dict_to_schema(action.path_param_schema),
             query_param_schema=action_param_dict_to_schema(action.query_param_schema),
-            body_param_schema=action_param_dict_to_schema(action.body_param_schema),
             body_type=ActionBodyType(action.body_type),
-            parameters=arguments,
-            headers={},
+            body_param_schema=action_param_dict_to_schema(action.body_param_schema),
+            parameters=parameters,
+            headers=headers,
             authentication=Authentication(**action.authentication),
         )
-        return response
