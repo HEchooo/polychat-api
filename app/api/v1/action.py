@@ -75,10 +75,22 @@ async def delete_action(*, session: AsyncSession = Depends(get_async_session), a
     response_model=BaseSuccessDataResponse,
 )
 async def api_run_action(*, session: AsyncSession = Depends(get_async_session), action_id: str, body: ActionRunRequest):
-    response: Dict = await ActionService.run_action(
+    # response: Dict = await ActionService.run_action(
+    #     session=session,
+    #     action_id=action_id,
+    #     parameters=body.parameters,
+    #     headers=body.headers,
+    # )
+    # return BaseSuccessDataResponse(data=response)
+    stream = await ActionService.run_action(
         session=session,
         action_id=action_id,
         parameters=body.parameters,
         headers=body.headers,
     )
-    return BaseSuccessDataResponse(data=response)
+
+    full_content = ""
+    for chunk in stream:
+        full_content += chunk
+
+    return BaseSuccessDataResponse(data={"content": full_content})

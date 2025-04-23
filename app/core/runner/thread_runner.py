@@ -211,14 +211,66 @@ class ThreadRunner:
                         step_details={"type": "tool_calls", "tool_calls": tool_calls_with_outputs},
                         completed=not external_tool_call_dict,
                     )
+
+                    if not external_tool_call_dict:
+                        tool_call = tool_calls_with_outputs[0]["function"]
+                        tool_output_stream = tool_call_output({"function": tool_call})
+
+                        def wrap_stream(tool_chunk_iter):
+                            for chunk in tool_chunk_iter:
+                                yield ChatCompletionChunk(
+                                    id="chatcmpl-fake",
+                                    object="chat.completion.chunk",
+                                    created=0,
+                                    model="tool-model",
+                                    choices=[
+                                        Choice(
+                                            index=0,
+                                            delta=ChoiceDelta(content=chunk, role="assistant"),
+                                            finish_reason=None,
+                                        )
+                                    ],
+                                )
+                            yield ChatCompletionChunk(
+                                id="chatcmpl-fake",
+                                object="chat.completion.chunk",
+                                created=0,
+                                model="tool-model",
+                                choices=[
+                                    Choice(index=0, delta=ChoiceDelta(content=None), finish_reason="stop")
+                                ],
+                            )
+
+                        response_stream = wrap_stream(tool_output_stream)
+                        response_msg = llm_callback_handler.handle_llm_response(response_stream)
+
+                        new_message = MessageService.modify_message_sync(
+                            session=self.session,
+                            thread_id=run.thread_id,
+                            message_id=llm_callback_handler.message.id,
+                            body=MessageUpdate(content=response_msg.content),
+                        )
+                        self.event_handler.pub_message_completed(new_message)
+
+                        new_step = RunStepService.update_step_details(
+                            session=self.session,
+                            run_step_id=llm_callback_handler.step.id,
+                            step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
+                            completed=True,
+                        )
+
+                        RunService.to_completed(session=self.session, run_id=run.id)
+                        self.event_handler.pub_run_step_completed(new_step)
+                        self.event_handler.pub_run_completed(run)
+
+                        return False
                 except Exception as e:
-                    logging.error(f'Exception, Error: {e}')
+                    logging.error(f"Tool stream failed: {e}")
                     logging.error(traceback.format_exc())
                     RunStepService.to_failed(session=self.session, run_step_id=new_run_step.id, last_error=e)
                     raise e
 
             if external_tool_call_dict:
-                # run 设置为 action required，等待业务完成更新并再次拉起
                 run = RunService.to_requires_action(
                     session=self.session,
                     run_id=run.id,
@@ -228,73 +280,14 @@ class ThreadRunner:
                     },
                 )
                 self.event_handler.pub_run_step_delta(
-                    step_id=new_run_step.id, step_details={"type": "tool_calls", "tool_calls": external_tool_call_dict}
+                    step_id=new_run_step.id,
+                    step_details={"type": "tool_calls", "tool_calls": external_tool_call_dict},
                 )
                 self.event_handler.pub_run_requires_action(run)
             else:
-                logging.info("all tool calls completed")
                 self.event_handler.pub_run_step_completed(new_run_step)
-
-                tool_outputs = [
-                    str(tool_call_output(tool_call)) for tool_call in tool_calls_with_outputs
-                ]
-
-                logging.info("tool outputs: %s", tool_outputs)
-
-                def fake_llm_response_stream(tool_outputs: List[str]):
-                    for chunk_text in tool_outputs:
-                        yield ChatCompletionChunk(
-                            id="chatcmpl",
-                            object="chat.completion.chunk",
-                            created=0,
-                            model="gpt",
-                            choices=[
-                                Choice(
-                                    index=0,
-                                    delta=ChoiceDelta(content=chunk_text, role="assistant"),
-                                    finish_reason=None,
-                                )
-                            ]
-                        )
-                    yield ChatCompletionChunk(
-                        id="chatcmpl",
-                        object="chat.completion.chunk",
-                        created=0,
-                        model="gpt",
-                        choices=[
-                            Choice(
-                                index=0,
-                                delta=ChoiceDelta(content=None),
-                                finish_reason="stop",
-                            )
-                        ]
-                    )
-                response_msg = llm_callback_handler.handle_llm_response(
-                    fake_llm_response_stream(tool_outputs)
-                )
-
-                new_message = MessageService.modify_message_sync(
-                    session=self.session,
-                    thread_id=run.thread_id,
-                    message_id=llm_callback_handler.message.id,
-                    body=MessageUpdate(content=response_msg.content),
-                )
-                self.event_handler.pub_message_completed(new_message)
-
-                new_step = RunStepService.update_step_details(
-                    session=self.session,
-                    run_step_id=llm_callback_handler.step.id,
-                    step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
-                    completed=True,
-                )
-
-                RunService.to_completed(session=self.session, run_id=run.id)
-                self.event_handler.pub_run_step_completed(new_step)
-                self.event_handler.pub_run_completed(run)
-
-                return False 
+                return True
         else:
-            # 无 tool call 信息，message 生成结束，更新状态
             new_message = MessageService.modify_message_sync(
                 session=self.session,
                 thread_id=run.thread_id,
@@ -313,6 +306,35 @@ class ThreadRunner:
             self.event_handler.pub_run_step_completed(new_step)
 
         return False
+
+    def _wrap_tool_stream_response_as_chat_chunks(self, tool_chunk_iter: Iterator[str]):
+        for chunk in tool_chunk_iter:
+            yield ChatCompletionChunk(
+                id="chatcmpl",
+                object="chat.completion.chunk",
+                created=0,
+                model="model",
+                choices=[
+                    Choice(
+                        index=0,
+                        delta=ChoiceDelta(content=chunk, role="assistant"),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        yield ChatCompletionChunk(
+            id="chatcmpl",
+            object="chat.completion.chunk",
+            created=0,
+            model="model",
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content=None),
+                    finish_reason="stop",
+                )
+            ]
+        )
 
     def __init_llm_backend(self, assistant_id):
         if settings.AUTH_ENABLE:

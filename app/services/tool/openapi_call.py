@@ -1,7 +1,7 @@
 import logging
 import os
 import urllib.parse
-from typing import Dict
+from typing import Dict, Iterator
 
 import requests
 
@@ -155,3 +155,73 @@ def call_action_api(
         return {"status": 500, "error": f"Failed to make the API call: {e}"}
     except Exception:
         return {"status": 500, "error": "Failed to make the API call"}
+
+
+def call_action_api_stream(
+    url: str,
+    method: ActionMethod,
+    path_param_schema: Dict[str, ActionParam],
+    query_param_schema: Dict[str, ActionParam],
+    body_type: ActionBodyType,
+    body_param_schema: Dict[str, ActionParam],
+    parameters: Dict,
+    headers: Dict,
+    authentication: Authentication,
+) -> Iterator[str]:
+    """
+    Stream-compatible API caller. Yields response chunks as strings.
+    """
+    authentication.decrypt()
+    if path_param_schema:
+        path_params = _process_parameters(path_param_schema, parameters)
+        for param_name, param_value in path_params.items():
+            url = url.replace(f"{{{param_name}}}", urllib.parse.quote(str(param_value)))
+
+    query_params = {}
+    if query_param_schema:
+        query_params = _process_parameters(query_param_schema, parameters)
+        for param_name, param_value in query_params.items():
+            if isinstance(param_value, bool):
+                query_params[param_name] = str(param_value).lower()
+
+    body = None
+    if body_type != ActionBodyType.NONE:
+        body = _process_parameters(body_param_schema, parameters)
+
+    prepared_headers = _prepare_headers(authentication, headers)
+
+    try:
+        request_kwargs = {
+            "headers": prepared_headers,
+            "stream": True 
+        }
+
+        if query_params:
+            request_kwargs["params"] = query_params
+        if os.environ.get("HTTP_PROXY_URL"):
+            request_kwargs["proxy"] = os.environ.get("HTTP_PROXY_URL")
+        if body_type == ActionBodyType.JSON:
+            request_kwargs["json"] = body
+            prepared_headers["Content-Type"] = "application/json"
+        elif body_type == ActionBodyType.FORM:
+            request_kwargs["data"] = body
+            prepared_headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+        logging.info(f"[STREAM] call_action_api_stream url={url} kwargs={request_kwargs}")
+
+        with requests.request(method.value, url, **request_kwargs) as response:
+            if response.status_code != 200:
+                yield f"[ERROR {response.status_code}] {response.text}"
+                return
+
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:
+                    try:
+                        yield chunk.decode("utf-8")
+                    except Exception as e:
+                        yield f"[DecodeError] {e}"
+            yield "\n[Done]"
+    except requests.exceptions.RequestException as e:
+        yield f"[RequestException] {e}"
+    except Exception as e:
+        yield f"[Exception] {e}"
