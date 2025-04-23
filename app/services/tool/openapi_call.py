@@ -219,26 +219,19 @@ def call_action_api_stream(
             response_content_type = response.headers.get("Content-Type", "").lower()
             logging.info(f"[STREAM] content-type: {response_content_type}")
 
-            buffer = ""
             for chunk in response.iter_content(chunk_size=1024):
                 if chunk:
                     try:
                         text = chunk.decode("utf-8")
-                        buffer += text
                         logging.debug(f"[STREAM] raw chunk: {text}")
-
-                        while "\n" in buffer:
-                            line, buffer = buffer.split("\n", 1)
-                            logging.debug(f"[STREAM] yield line: {line}")
-                            yield line + "\n"
+                        yield text  
                     except Exception as e:
                         logging.exception("[STREAM] decode error")
                         yield f"[DecodeError] {e}"
-            if buffer:
-                logging.debug(f"[STREAM] yield remaining buffer: {buffer}")
-                yield buffer
+
             logging.info("[STREAM] yield done")
             yield "\n[Done]"
+
     except requests.exceptions.RequestException as e:
         logging.exception("[STREAM] request exception")
         yield f"[RequestException] {e}"
