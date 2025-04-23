@@ -229,7 +229,7 @@ class ThreadRunner:
                     )
 
                     if not external_tool_call_dict:
-                        tool_call = tool_calls_with_outputs_full[0]["function"]
+                        tool_call = tool_calls_with_outputs_full[0]
                         logging.info(f"Tool call: {tool_call}")
                         # tool_output_stream = tool_call_output({"function": tool_call})
                         tool_output_stream = tool_call["function"].get("_stream")
