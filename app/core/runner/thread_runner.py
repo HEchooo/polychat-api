@@ -2,7 +2,7 @@ from functools import partial
 import logging
 import traceback
 
-from typing import List
+from typing import List, Iterator
 from concurrent.futures import Executor
 
 from sqlalchemy.orm import Session
