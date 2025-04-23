@@ -205,10 +205,23 @@ class ThreadRunner:
                         tasks=internal_tool_calls,
                         timeout=tool_settings.TOOL_WORKER_EXECUTION_TIMEOUT,
                     )
+
+                    import copy
+
+                    def strip_non_serializable_fields(tool_calls: List[dict]) -> List[dict]:
+                        def strip(d):
+                            d = copy.deepcopy(d)
+                            for tool_call in d:
+                                func = tool_call.get("function", {})
+                                func.pop("_stream", None)
+                            return d
+                        return strip(tool_calls)
+                    tool_calls_with_outputs_clean = strip_non_serializable_fields(tool_calls_with_outputs)
+
                     new_run_step = RunStepService.update_step_details(
                         session=self.session,
                         run_step_id=new_run_step.id,
-                        step_details={"type": "tool_calls", "tool_calls": tool_calls_with_outputs},
+                        step_details={"type": "tool_calls", "tool_calls": tool_calls_with_outputs_clean},
                         completed=not external_tool_call_dict,
                     )
 
