@@ -233,33 +233,33 @@ class ThreadRunner:
                         logging.info(f"Tool call: {tool_call}")
                         # tool_output_stream = tool_call_output({"function": tool_call})
                         tool_output_stream = tool_call["function"].get("_stream")
-                    def wrap_stream(tool_chunk_iter):
+                        def wrap_stream(tool_chunk_iter):
 
-                        for chunk in tool_chunk_iter:
-                            if chunk.strip():  
-                                yield ChatCompletionChunk(
-                                    id="chatcmpl",
-                                    object="chat.completion.chunk",
-                                    created=0,
-                                    model="model",
-                                    choices=[
-                                        Choice(
-                                            index=0,
-                                            delta=ChoiceDelta(content=chunk, role="assistant"),
-                                            finish_reason=None,
-                                        )
-                                    ],
-                                )
+                            for chunk in tool_chunk_iter:
+                                if chunk.strip():  
+                                    yield ChatCompletionChunk(
+                                        id="chatcmpl",
+                                        object="chat.completion.chunk",
+                                        created=0,
+                                        model="model",
+                                        choices=[
+                                            Choice(
+                                                index=0,
+                                                delta=ChoiceDelta(content=chunk, role="assistant"),
+                                                finish_reason=None,
+                                            )
+                                        ],
+                                    )
 
-                        yield ChatCompletionChunk(
-                            id="chatcmpl",
-                            object="chat.completion.chunk",
-                            created=0,
-                            model="model",
-                            choices=[
-                                Choice(index=0, delta=ChoiceDelta(content=None), finish_reason="stop")
-                            ],
-                        )
+                            yield ChatCompletionChunk(
+                                id="chatcmpl",
+                                object="chat.completion.chunk",
+                                created=0,
+                                model="model",
+                                choices=[
+                                    Choice(index=0, delta=ChoiceDelta(content=None), finish_reason="stop")
+                                ],
+                            )
 
                         response_stream = wrap_stream(tool_output_stream)
                         response_msg = llm_callback_handler.handle_llm_response(response_stream)
