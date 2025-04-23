@@ -193,7 +193,7 @@ def call_action_api_stream(
     try:
         request_kwargs = {
             "headers": prepared_headers,
-            "stream": True 
+            "stream": True,
         }
 
         if query_params:
@@ -210,18 +210,38 @@ def call_action_api_stream(
         logging.info(f"[STREAM] call_action_api_stream url={url} kwargs={request_kwargs}")
 
         with requests.request(method.value, url, **request_kwargs) as response:
+            logging.info(f"[STREAM] response status: {response.status_code}")
             if response.status_code != 200:
+                logging.warning(f"[STREAM] error response: {response.text}")
                 yield f"[ERROR {response.status_code}] {response.text}"
                 return
 
+            response_content_type = response.headers.get("Content-Type", "").lower()
+            logging.info(f"[STREAM] content-type: {response_content_type}")
+
+            buffer = ""
             for chunk in response.iter_content(chunk_size=1024):
                 if chunk:
                     try:
-                        yield chunk.decode("utf-8")
+                        text = chunk.decode("utf-8")
+                        buffer += text
+                        logging.debug(f"[STREAM] raw chunk: {text}")
+
+                        while "\n" in buffer:
+                            line, buffer = buffer.split("\n", 1)
+                            logging.debug(f"[STREAM] yield line: {line}")
+                            yield line + "\n"
                     except Exception as e:
+                        logging.exception("[STREAM] decode error")
                         yield f"[DecodeError] {e}"
+            if buffer:
+                logging.debug(f"[STREAM] yield remaining buffer: {buffer}")
+                yield buffer
+            logging.info("[STREAM] yield done")
             yield "\n[Done]"
     except requests.exceptions.RequestException as e:
+        logging.exception("[STREAM] request exception")
         yield f"[RequestException] {e}"
     except Exception as e:
+        logging.exception("[STREAM] general exception")
         yield f"[Exception] {e}"
