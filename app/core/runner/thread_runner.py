@@ -217,7 +217,6 @@ class ThreadRunner:
                         logging.info(f"Tool call: {tool_call}")
                         # tool_output_stream = tool_call_output({"function": tool_call})
                         tool_output_stream = tool_call["function"].get("_stream")
-                        logging.info(f"Tool output: {tool_output_stream}")
 
                         def wrap_stream(tool_chunk_iter):
                             for chunk in tool_chunk_iter:
