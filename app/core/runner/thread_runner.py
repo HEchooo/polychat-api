@@ -37,6 +37,8 @@ from app.services.run.run_step import RunStepService
 from app.services.token.token import TokenService
 from app.services.token.token_relation import TokenRelationService
 from app.exceptions.exception import InterpreterNotSupported
+from openai.types.chat import ChatCompletionChunk, ChatCompletion
+
 
 
 class ThreadRunner:
@@ -240,21 +242,32 @@ class ThreadRunner:
 
                 def fake_llm_response_stream(tool_outputs: List[str]):
                     for chunk_text in tool_outputs:
-                        yield {
-                            "choices": [{
-                                "delta": {"content": chunk_text},
-                                "index": 0,
-                                "finish_reason": None,
-                            }]
-                        }
-                    yield {
-                        "choices": [{
-                            "delta": {},
-                            "index": 0,
-                            "finish_reason": "stop",
-                        }]
-                    }
-
+                        yield ChatCompletionChunk(
+                            id="chatcmpl",
+                            object="chat.completion.chunk",
+                            created=0,
+                            model="gpt",
+                            choices=[
+                                Choice(
+                                    index=0,
+                                    delta=ChoiceDelta(content=chunk_text, role="assistant"),
+                                    finish_reason=None,
+                                )
+                            ]
+                        )
+                    yield ChatCompletionChunk(
+                        id="chatcmpl",
+                        object="chat.completion.chunk",
+                        created=0,
+                        model="gpt",
+                        choices=[
+                            Choice(
+                                index=0,
+                                delta=ChoiceDelta(content=None),
+                                finish_reason="stop",
+                            )
+                        ]
+                    )
                 response_msg = llm_callback_handler.handle_llm_response(
                     fake_llm_response_stream(tool_outputs)
                 )
