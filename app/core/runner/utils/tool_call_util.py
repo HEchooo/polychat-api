@@ -34,12 +34,13 @@ def tool_call_recognize(tool_call: ChatCompletionMessageToolCall, tools: List[Ba
 def internal_tool_call_invoke(tool: BaseTool, tool_call_dict: dict) -> dict:
     args = json.loads(tool_call_dict["function"]["arguments"])
 
-    output_stream = tool.run(**args) 
+    output_stream = tool.run(**args)
 
-    tool_call_dict["function"]["output"] = output_stream
+    tool_call_dict["function"]["_stream"] = output_stream 
+    tool_call_dict["function"]["output"] = "[streamed]" 
 
     return tool_call_dict
-    
+
 def tool_call_request(tool_call_dict: dict) -> dict:
     """
     tool call 结果需返回原始请求 & 结果
