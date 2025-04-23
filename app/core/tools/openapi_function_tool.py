@@ -58,7 +58,7 @@ class OpenapiFunctionTool(BaseTool):
             query_param_schema=action_param_dict_to_schema(action.query_param_schema),
             body_type=ActionBodyType(action.body_type),
             body_param_schema=action_param_dict_to_schema(action.body_param_schema),
-            parameters=parameters,
-            headers=headers,
+            parameters=arguments,
+            headers={},
             authentication=Authentication(**action.authentication),
         )
