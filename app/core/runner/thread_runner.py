@@ -206,16 +206,19 @@ class ThreadRunner:
                         timeout=tool_settings.TOOL_WORKER_EXECUTION_TIMEOUT,
                     )
 
-                    import copy
-
                     def strip_non_serializable_fields(tool_calls: List[dict]) -> List[dict]:
-                        def strip(d):
-                            d = copy.deepcopy(d)
-                            for tool_call in d:
-                                func = tool_call.get("function", {})
-                                func.pop("_stream", None)
-                            return d
-                        return strip(tool_calls)
+                        cleaned = []
+                        for call in tool_calls:
+                            new_call = {
+                                k: v for k, v in call.items() if k != 'function'
+                            }
+                            function = {
+                                k: v for k, v in call.get("function", {}).items() if not isinstance(v, type((i for i in []))) 
+                            }
+                            new_call["function"] = function
+                            cleaned.append(new_call)
+                        return cleaned
+
                     tool_calls_with_outputs_clean = strip_non_serializable_fields(tool_calls_with_outputs)
 
                     new_run_step = RunStepService.update_step_details(
@@ -321,35 +324,6 @@ class ThreadRunner:
             self.event_handler.pub_run_step_completed(new_step)
 
         return False
-
-    def _wrap_tool_stream_response_as_chat_chunks(self, tool_chunk_iter: Iterator[str]):
-        for chunk in tool_chunk_iter:
-            yield ChatCompletionChunk(
-                id="chatcmpl",
-                object="chat.completion.chunk",
-                created=0,
-                model="model",
-                choices=[
-                    Choice(
-                        index=0,
-                        delta=ChoiceDelta(content=chunk, role="assistant"),
-                        finish_reason=None,
-                    )
-                ]
-            )
-        yield ChatCompletionChunk(
-            id="chatcmpl",
-            object="chat.completion.chunk",
-            created=0,
-            model="model",
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(content=None),
-                    finish_reason="stop",
-                )
-            ]
-        )
 
     def __init_llm_backend(self, assistant_id):
         if settings.AUTH_ENABLE:
