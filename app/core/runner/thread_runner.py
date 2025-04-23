@@ -116,6 +116,44 @@ class ThreadRunner:
         """
         logging.info("step %d is running", len(run_steps) + 1)
 
+        if run_steps and run_steps[-1].type == "tool_calls" and run_steps[-1].status == "completed":
+            tool_calls = run_steps[-1].step_details["tool_calls"]
+            
+            combined_output = ""
+            for tool_call in tool_calls:
+                tool_name = tool_call.get("function", {}).get("name", "Unknown tool")
+                output = tool_call.get("output", "No output")
+                combined_output += f"工具 '{tool_name}' 的结果:\n{output}\n\n"
+            
+            new_message = MessageService.new_message(
+                session=self.session,
+                assistant_id=run.assistant_id,
+                thread_id=run.thread_id,
+                run_id=run.id,
+                role="assistant",
+                content=[{"type": "text", "text": {"value": combined_output}}]
+            )
+            
+            new_step = RunStepService.new_run_step(
+                session=self.session,
+                type="message_creation",
+                assistant_id=run.assistant_id,
+                thread_id=run.thread_id,
+                run_id=run.id,
+                step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
+            )
+            
+            self.event_handler.pub_message_completed(new_message)
+            new_step = RunStepService.update_step_details(
+                session=self.session,
+                run_step_id=new_step.id,
+                step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
+                completed=True,
+            )
+            RunService.to_completed(session=self.session, run_id=run.id)
+            self.event_handler.pub_run_step_completed(new_step)
+            return False
+        
         assistant_system_message = [msg_util.system_message(instruction)]
 
         # 获取已有 message 上下文记录
@@ -130,7 +168,7 @@ class ThreadRunner:
 
         # memory
         messages = assistant_system_message + memory.integrate_context(chat_messages) + tool_call_messages 
-
+        
         response_stream = llm.run(
             messages=messages,
             model=run.model,
