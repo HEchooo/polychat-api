@@ -38,6 +38,7 @@ from app.services.token.token import TokenService
 from app.services.token.token_relation import TokenRelationService
 from app.exceptions.exception import InterpreterNotSupported
 from openai.types.chat import ChatCompletionChunk, ChatCompletion
+from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 
 
 
@@ -312,23 +313,6 @@ class ThreadRunner:
             self.event_handler.pub_run_step_completed(new_step)
 
         return False
-
-    def fake_llm_response_stream(tool_outputs: List[str]):
-        for chunk_text in tool_outputs:
-            yield {
-                "choices": [{
-                    "delta": {"content": chunk_text},
-                    "index": 0,
-                    "finish_reason": None,
-                }]
-            }
-        yield {
-            "choices": [{
-                "delta": {},
-                "index": 0,
-                "finish_reason": "stop",
-            }]
-        }
 
     def __init_llm_backend(self, assistant_id):
         if settings.AUTH_ENABLE:
