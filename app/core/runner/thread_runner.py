@@ -193,6 +193,8 @@ class ThreadRunner:
             internal_tool_calls = list(filter(lambda _tool_calls: _tool_calls[0] is not None, tool_calls))
             external_tool_call_dict = [tool_call_dict for tool, tool_call_dict in tool_calls if tool is None]
 
+            logging.info("internal tool calls: %s", internal_tool_calls)
+            logging.info("external tool call dict: %s", external_tool_call_dict)
             # 为减少线程同步逻辑，依次处理内/外 tool_call 调用
             if internal_tool_calls:
                 try:
@@ -202,6 +204,7 @@ class ThreadRunner:
                         tasks=internal_tool_calls,
                         timeout=tool_settings.TOOL_WORKER_EXECUTION_TIMEOUT,
                     )
+                    logging.info("internal tool calls with outputs: %s", tool_calls_with_outputs)
                     new_run_step = RunStepService.update_step_details(
                         session=self.session,
                         run_step_id=new_run_step.id,
