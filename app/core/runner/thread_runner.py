@@ -199,6 +199,7 @@ class ThreadRunner:
             # 为减少线程同步逻辑，依次处理内/外 tool_call 调用
             if internal_tool_calls:
                 try:
+                    logging.info("internal tool calls: %s", internal_tool_calls)
                     tool_calls_with_outputs = run_with_executor(
                         executor=ThreadRunner.tool_executor,
                         func=internal_tool_call_invoke,

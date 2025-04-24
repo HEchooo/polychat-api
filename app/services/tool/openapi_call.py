@@ -217,7 +217,7 @@ def call_action_api_stream(
                 return
 
             response_content_type = response.headers.get("Content-Type", "").lower()
-            logging.info(f"[STREAM] content-type: {response_content_type}")
+            logging.debug(f"[STREAM] content-type: {response_content_type}")
 
             for chunk in response.iter_content(chunk_size=1024):
                 if chunk:
@@ -229,8 +229,7 @@ def call_action_api_stream(
                         logging.exception("[STREAM] decode error")
                         yield f"[DecodeError] {e}"
 
-            logging.info("[STREAM] yield done")
-            yield "\n[Done]"
+            logging.debug("[STREAM] yield done")
 
     except requests.exceptions.RequestException as e:
         logging.exception("[STREAM] request exception")
