@@ -219,7 +219,7 @@ def call_action_api_stream(
             response_content_type = response.headers.get("Content-Type", "").lower()
             logging.debug(f"[STREAM] content-type: {response_content_type}")
 
-            for chunk in response.iter_content(chunk_size=1024):
+            for chunk in response.iter_content(chunk_size=256):
                 if chunk:
                     try:
                         text = chunk.decode("utf-8")
