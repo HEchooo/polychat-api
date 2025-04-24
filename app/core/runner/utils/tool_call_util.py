@@ -34,11 +34,15 @@ def tool_call_recognize(tool_call: ChatCompletionMessageToolCall, tools: List[Ba
 
 def internal_tool_call_invoke(tool: BaseTool, tool_call_dict: dict) -> dict:
     args = json.loads(tool_call_dict["function"]["arguments"])
-    logging.info("invoke tool %s with args %s", tool, args)
-    output_stream = tool.run(**args)
-
-    tool_call_dict["function"]["_stream"] = output_stream 
-    tool_call_dict["function"]["output"] = "[streamed]" 
+    tool_name = tool_call_dict["function"].get("name")
+    logging.info("tool_call_dict function %s", tool_call_dict["function"])
+    if tool_name == "product_recommendation_api":
+        output_stream = tool.run(**args)
+        tool_call_dict["function"]["_stream"] = output_stream
+        tool_call_dict["function"]["output"] = "[streamed]"
+    else:
+        output = tool.run(**args)
+        tool_call_dict["function"]["output"] = json.dumps(output, ensure_ascii=False)
 
     return tool_call_dict
 

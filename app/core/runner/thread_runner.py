@@ -114,25 +114,17 @@ class ThreadRunner:
         tools: List[BaseTool],
         memory: Memory,
     ):
-        """
-        执行 run step
-        """
         logging.info("step %d is running", len(run_steps) + 1)
 
         assistant_system_message = [msg_util.system_message(instruction)]
-
-        # 获取已有 message 上下文记录
         chat_messages = self.__generate_chat_messages(
             MessageService.get_message_list(session=self.session, thread_id=run.thread_id)
         )
-
-        tool_call_messages = []
-        for step in run_steps:
-            if step.type == "tool_calls" and step.status == "completed":
-                tool_call_messages += self.__convert_assistant_tool_calls_to_chat_messages(step)
-
-        # memory
-        messages = assistant_system_message + memory.integrate_context(chat_messages) + tool_call_messages 
+        tool_call_messages = [
+            msg for step in run_steps if step.type == "tool_calls" and step.status == "completed"
+            for msg in self.__convert_assistant_tool_calls_to_chat_messages(step)
+        ]
+        messages = assistant_system_message + memory.integrate_context(chat_messages) + tool_call_messages
 
         response_stream = llm.run(
             messages=messages,
@@ -193,51 +185,28 @@ class ThreadRunner:
             self.event_handler.pub_run_step_created(new_run_step)
             self.event_handler.pub_run_step_in_progress(new_run_step)
 
-            internal_tool_calls = list(filter(lambda _tool_calls: _tool_calls[0] is not None, tool_calls))
-            external_tool_call_dict = [tool_call_dict for tool, tool_call_dict in tool_calls if tool is None]
+            internal_tool_calls = [(tool, call) for tool, call in tool_calls if tool is not None]
+            external_tool_call_dict = [call for tool, call in tool_calls if tool is None]
 
             # 为减少线程同步逻辑，依次处理内/外 tool_call 调用
             if internal_tool_calls:
                 try:
-                    logging.info("internal tool calls: %s", internal_tool_calls)
-                    tool_calls_with_outputs = run_with_executor(
-                        executor=ThreadRunner.tool_executor,
+                    tool_outputs = run_with_executor(
+                        executor=self.tool_executor,
                         func=internal_tool_call_invoke,
                         tasks=internal_tool_calls,
                         timeout=tool_settings.TOOL_WORKER_EXECUTION_TIMEOUT,
                     )
 
-                    def strip_non_serializable_fields(tool_calls: List[dict]) -> List[dict]:
-                        cleaned = []
-                        for call in tool_calls:
-                            new_call = {
-                                k: v for k, v in call.items() if k != 'function'
-                            }
-                            function = {
-                                k: v for k, v in call.get("function", {}).items() if not isinstance(v, type((i for i in []))) 
-                            }
-                            new_call["function"] = function
-                            cleaned.append(new_call)
-                        return cleaned
-                    tool_calls_with_outputs_full = tool_calls_with_outputs         
-                    tool_calls_with_outputs_clean = strip_non_serializable_fields(tool_calls_with_outputs)
+                    tool_name = tool_outputs[0]["function"].get("name")
+                    is_special_stream_tool = tool_name == "product_recommendation_api"
 
-                    new_run_step = RunStepService.update_step_details(
-                        session=self.session,
-                        run_step_id=new_run_step.id,
-                        step_details={"type": "tool_calls", "tool_calls": tool_calls_with_outputs_clean},
-                        completed=not external_tool_call_dict,
-                    )
+                    if is_special_stream_tool:
+                        tool_stream = tool_outputs[0]["function"]["_stream"]
 
-                    if not external_tool_call_dict:
-                        tool_call = tool_calls_with_outputs_full[0]
-                        logging.info(f"Tool call: {tool_call}")
-                        # tool_output_stream = tool_call_output({"function": tool_call})
-                        tool_output_stream = tool_call["function"].get("_stream")
                         def wrap_stream(tool_chunk_iter):
-
                             for chunk in tool_chunk_iter:
-                                if chunk.strip():  
+                                if chunk.strip():
                                     yield ChatCompletionChunk(
                                         id="chatcmpl",
                                         object="chat.completion.chunk",
@@ -251,7 +220,6 @@ class ThreadRunner:
                                             )
                                         ],
                                     )
-
                             yield ChatCompletionChunk(
                                 id="chatcmpl",
                                 object="chat.completion.chunk",
@@ -262,8 +230,7 @@ class ThreadRunner:
                                 ],
                             )
 
-                        response_stream = wrap_stream(tool_output_stream)
-                        response_msg = llm_callback_handler.handle_llm_response(response_stream)
+                        response_msg = llm_callback_handler.handle_llm_response(wrap_stream(tool_stream))
 
                         new_message = MessageService.modify_message_sync(
                             session=self.session,
@@ -275,18 +242,25 @@ class ThreadRunner:
 
                         new_step = RunStepService.update_step_details(
                             session=self.session,
-                            run_step_id=llm_callback_handler.step.id,
+                            run_step_id=llm_callback_handler.step.id,  
                             step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
                             completed=True,
                         )
-
                         RunService.to_completed(session=self.session, run_id=run.id)
                         self.event_handler.pub_run_step_completed(new_step)
                         self.event_handler.pub_run_completed(run)
 
                         return False
+
+                    new_run_step = RunStepService.update_step_details(
+                        session=self.session,
+                        run_step_id=new_run_step.id,
+                        step_details={"type": "tool_calls", "tool_calls": tool_outputs},
+                        completed=not external_tool_call_dict,
+                    )
+
                 except Exception as e:
-                    logging.error(f"Tool stream failed: {e}")
+                    logging.error(f'Tool stream failed: {e}')
                     logging.error(traceback.format_exc())
                     RunStepService.to_failed(session=self.session, run_step_id=new_run_step.id, last_error=e)
                     raise e
@@ -301,30 +275,29 @@ class ThreadRunner:
                     },
                 )
                 self.event_handler.pub_run_step_delta(
-                    step_id=new_run_step.id,
-                    step_details={"type": "tool_calls", "tool_calls": external_tool_call_dict},
+                    step_id=new_run_step.id, step_details={"type": "tool_calls", "tool_calls": external_tool_call_dict}
                 )
                 self.event_handler.pub_run_requires_action(run)
             else:
                 self.event_handler.pub_run_step_completed(new_run_step)
                 return True
-        else:
-            new_message = MessageService.modify_message_sync(
-                session=self.session,
-                thread_id=run.thread_id,
-                message_id=llm_callback_handler.message.id,
-                body=MessageUpdate(content=response_msg.content),
-            )
-            self.event_handler.pub_message_completed(new_message)
 
-            new_step = RunStepService.update_step_details(
-                session=self.session,
-                run_step_id=message_creation_run_step.id,
-                step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
-                completed=True,
-            )
-            RunService.to_completed(session=self.session, run_id=run.id)
-            self.event_handler.pub_run_step_completed(new_step)
+        new_message = MessageService.modify_message_sync(
+            session=self.session,
+            thread_id=run.thread_id,
+            message_id=llm_callback_handler.message.id,
+            body=MessageUpdate(content=response_msg.content),
+        )
+        self.event_handler.pub_message_completed(new_message)
+
+        new_step = RunStepService.update_step_details(
+            session=self.session,
+            run_step_id=message_creation_run_step.id,
+            step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
+            completed=True,
+        )
+        RunService.to_completed(session=self.session, run_id=run.id)
+        self.event_handler.pub_run_step_completed(new_step)
 
         return False
 
