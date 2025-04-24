@@ -12,12 +12,14 @@ tool calls 常用转换方法
 查询结果将放入 ["function"]["output"] 中
 """
 
+import logging
 from typing import List
 import json
 from openai.types.chat.chat_completion_message import ChatCompletionMessageToolCall
 
 from app.core.tools.base_tool import BaseTool
 from app.core.tools.external_function_tool import ExternalFunctionTool
+from config.llm import tool_settings
 
 
 def tool_call_recognize(tool_call: ChatCompletionMessageToolCall, tools: List[BaseTool]) -> (BaseTool, dict):
@@ -32,14 +34,18 @@ def tool_call_recognize(tool_call: ChatCompletionMessageToolCall, tools: List[Ba
 
 
 def internal_tool_call_invoke(tool: BaseTool, tool_call_dict: dict) -> dict:
-    """
-    internal tool call 执行，结果写入 output
-    """
     args = json.loads(tool_call_dict["function"]["arguments"])
-    output = tool.run(**args)
-    tool_call_dict["function"]["output"] = json.dumps(output, ensure_ascii=False)
-    return tool_call_dict
+    tool_name = tool_call_dict["function"].get("name")
+    logging.info("tool_call_dict function %s", tool_call_dict["function"])
+    if tool_name in tool_settings.SPECIAL_STREAM_TOOLS:
+        output_stream = tool.run(**args)
+        tool_call_dict["function"]["_stream"] = output_stream
+        tool_call_dict["function"]["output"] = "[streamed]"
+    else:
+        output = tool.run(**args)
+        tool_call_dict["function"]["output"] = json.dumps(output, ensure_ascii=False)
 
+    return tool_call_dict
 
 def tool_call_request(tool_call_dict: dict) -> dict:
     """

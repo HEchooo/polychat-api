@@ -16,7 +16,7 @@ from app.schemas.tool.action import (
     ActionBodyType,
 )
 from app.schemas.tool.authentication import Authentication
-from app.services.tool.openapi_call import call_action_api
+from app.services.tool.openapi_call import call_action_api, call_action_api_stream
 from app.services.tool.openapi_utils import (
     split_openapi_schema,
     replace_openapi_refs,
@@ -207,15 +207,26 @@ class ActionService:
         """
         action: Action = await ActionService.get_action(session=session, action_id=action_id)
 
-        response = call_action_api(
+        # response = call_action_api(
+        #     url=action.url,
+        #     method=ActionMethod(action.method),
+        #     path_param_schema=action_param_dict_to_schema(action.path_param_schema),
+        #     query_param_schema=action_param_dict_to_schema(action.query_param_schema),
+        #     body_param_schema=action_param_dict_to_schema(action.body_param_schema),
+        #     body_type=ActionBodyType(action.body_type),
+        #     parameters=parameters,
+        #     headers=headers,
+        #     authentication=Authentication(**action.authentication),
+        # )
+        # return response
+        return call_action_api_stream(
             url=action.url,
             method=ActionMethod(action.method),
             path_param_schema=action_param_dict_to_schema(action.path_param_schema),
             query_param_schema=action_param_dict_to_schema(action.query_param_schema),
-            body_param_schema=action_param_dict_to_schema(action.body_param_schema),
             body_type=ActionBodyType(action.body_type),
+            body_param_schema=action_param_dict_to_schema(action.body_param_schema),
             parameters=parameters,
             headers=headers,
             authentication=Authentication(**action.authentication),
         )
-        return response
