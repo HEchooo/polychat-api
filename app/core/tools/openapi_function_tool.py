@@ -38,13 +38,14 @@ class OpenapiFunctionTool(BaseTool):
         self.openai_function = {"type": "function", "function": action.function_def}
         self.name = action.function_def["name"]
         if self.name == "product_recommendation_api":
-            logging.info("product_recommendation_api should be stream")
+            logging.info(f"{self.name} should be stream")
             self.is_stream = True
 
     def run(self, **arguments: dict):
         action = self.action
 
         if self.is_stream:
+            logging.debug(f"{self.name} is stream")
             return call_action_api_stream(
                 url=action.url,
                 method=ActionMethod(action.method),
@@ -57,6 +58,7 @@ class OpenapiFunctionTool(BaseTool):
                 authentication=Authentication(**action.authentication),
             )
         else:
+            logging.debug(f"{self.name} is not stream")
             return call_action_api(
                 url=action.url,
                 method=ActionMethod(action.method),
