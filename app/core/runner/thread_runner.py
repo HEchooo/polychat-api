@@ -207,19 +207,21 @@ class ThreadRunner:
                         def wrap_stream(tool_chunk_iter):
                             for chunk in tool_chunk_iter:
                                 if chunk.strip():
-                                    yield ChatCompletionChunk(
-                                        id="chatcmpl",
-                                        object="chat.completion.chunk",
-                                        created=0,
-                                        model="model",
-                                        choices=[
-                                            Choice(
-                                                index=0,
-                                                delta=ChoiceDelta(content=chunk, role="assistant"),
-                                                finish_reason=None,
-                                            )
-                                        ],
-                                    )
+                                    for char in chunk:
+                                        yield ChatCompletionChunk(
+                                            id="chatcmpl",
+                                            object="chat.completion.chunk",
+                                            created=0,
+                                            model="model",
+                                            choices=[
+                                                Choice(
+                                                    index=0,
+                                                    delta=ChoiceDelta(content=char, role="assistant"),
+                                                    finish_reason=None,
+                                                )
+                                            ],
+                                        )
+
                             yield ChatCompletionChunk(
                                 id="chatcmpl",
                                 object="chat.completion.chunk",
