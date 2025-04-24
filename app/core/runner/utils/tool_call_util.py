@@ -12,6 +12,7 @@ tool calls 常用转换方法
 查询结果将放入 ["function"]["output"] 中
 """
 
+import logging
 from typing import List
 import json
 from openai.types.chat.chat_completion_message import ChatCompletionMessageToolCall
@@ -33,7 +34,7 @@ def tool_call_recognize(tool_call: ChatCompletionMessageToolCall, tools: List[Ba
 
 def internal_tool_call_invoke(tool: BaseTool, tool_call_dict: dict) -> dict:
     args = json.loads(tool_call_dict["function"]["arguments"])
-
+    logging.info("invoke tool %s with args %s", tool, args)
     output_stream = tool.run(**args)
 
     tool_call_dict["function"]["_stream"] = output_stream 
