@@ -1,3 +1,4 @@
+import logging
 from app.models.action import Action
 from app.core.tools.base_tool import BaseTool
 from app.exceptions.exception import ResourceNotFoundError
@@ -17,6 +18,7 @@ class OpenapiFunctionTool(BaseTool):
     description = ""
     args_schema = None
     action: Action = None
+    is_stream = False
 
     def __init__(self, definition: dict, extra_body: dict, action: Action) -> None:
         if definition["type"] != "action" or "id" not in definition:
@@ -35,30 +37,34 @@ class OpenapiFunctionTool(BaseTool):
         self.action = action
         self.openai_function = {"type": "function", "function": action.function_def}
         self.name = action.function_def["name"]
+        if self.name == "product_recommendation_api":
+            logging.info("product_recommendation_api should be stream")
+            self.is_stream = True
 
-    def run(self, **arguments: dict) -> dict:
+    def run(self, **arguments: dict):
         action = self.action
-        # response = call_action_api(
-        #     url=action.url,
-        #     method=ActionMethod(action.method),
-        #     path_param_schema=action_param_dict_to_schema(action.path_param_schema),
-        #     query_param_schema=action_param_dict_to_schema(action.query_param_schema),
-        #     body_param_schema=action_param_dict_to_schema(action.body_param_schema),
-        #     body_type=ActionBodyType(action.body_type),
-        #     parameters=arguments,
-        #     headers={},
-        #     authentication=Authentication(**action.authentication),
-        # )
-        # return response
 
-        return call_action_api_stream(
-            url=action.url,
-            method=ActionMethod(action.method),
-            path_param_schema=action_param_dict_to_schema(action.path_param_schema),
-            query_param_schema=action_param_dict_to_schema(action.query_param_schema),
-            body_type=ActionBodyType(action.body_type),
-            body_param_schema=action_param_dict_to_schema(action.body_param_schema),
-            parameters=arguments,
-            headers={},
-            authentication=Authentication(**action.authentication),
-        )
+        if self.is_stream:
+            return call_action_api_stream(
+                url=action.url,
+                method=ActionMethod(action.method),
+                path_param_schema=action_param_dict_to_schema(action.path_param_schema),
+                query_param_schema=action_param_dict_to_schema(action.query_param_schema),
+                body_type=ActionBodyType(action.body_type),
+                body_param_schema=action_param_dict_to_schema(action.body_param_schema),
+                parameters=arguments,
+                headers={},
+                authentication=Authentication(**action.authentication),
+            )
+        else:
+            return call_action_api(
+                url=action.url,
+                method=ActionMethod(action.method),
+                path_param_schema=action_param_dict_to_schema(action.path_param_schema),
+                query_param_schema=action_param_dict_to_schema(action.query_param_schema),
+                body_param_schema=action_param_dict_to_schema(action.body_param_schema),
+                body_type=ActionBodyType(action.body_type),
+                parameters=arguments,
+                headers={},
+                authentication=Authentication(**action.authentication),
+            )
