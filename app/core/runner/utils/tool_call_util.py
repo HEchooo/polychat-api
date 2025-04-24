@@ -19,6 +19,7 @@ from openai.types.chat.chat_completion_message import ChatCompletionMessageToolC
 
 from app.core.tools.base_tool import BaseTool
 from app.core.tools.external_function_tool import ExternalFunctionTool
+from config.llm import tool_settings
 
 
 def tool_call_recognize(tool_call: ChatCompletionMessageToolCall, tools: List[BaseTool]) -> (BaseTool, dict):
@@ -36,7 +37,7 @@ def internal_tool_call_invoke(tool: BaseTool, tool_call_dict: dict) -> dict:
     args = json.loads(tool_call_dict["function"]["arguments"])
     tool_name = tool_call_dict["function"].get("name")
     logging.info("tool_call_dict function %s", tool_call_dict["function"])
-    if tool_name == "product_recommendation_api":
+    if tool_name in tool_settings.SPECIAL_STREAM_TOOLS:
         output_stream = tool.run(**args)
         tool_call_dict["function"]["_stream"] = output_stream
         tool_call_dict["function"]["output"] = "[streamed]"

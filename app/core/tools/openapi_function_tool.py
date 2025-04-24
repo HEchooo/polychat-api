@@ -6,6 +6,7 @@ from app.services.tool.openapi_call import call_action_api, call_action_api_stre
 from app.schemas.tool.action import ActionMethod, ActionBodyType
 from app.services.tool.openapi_utils import action_param_dict_to_schema
 from app.schemas.tool.authentication import Authentication
+from config.llm import tool_settings
 
 
 class OpenapiFunctionTool(BaseTool):
@@ -37,7 +38,7 @@ class OpenapiFunctionTool(BaseTool):
         self.action = action
         self.openai_function = {"type": "function", "function": action.function_def}
         self.name = action.function_def["name"]
-        if self.name == "product_recommendation_api":
+        if self.name in tool_settings.SPECIAL_STREAM_TOOLS:
             logging.info(f"{self.name} should be stream")
             self.is_stream = True
 

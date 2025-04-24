@@ -199,7 +199,7 @@ class ThreadRunner:
                     )
 
                     tool_name = tool_outputs[0]["function"].get("name")
-                    is_special_stream_tool = tool_name == "product_recommendation_api"
+                    is_special_stream_tool = tool_name in tool_settings.SPECIAL_STREAM_TOOLS
 
                     if is_special_stream_tool:
                         tool_stream = tool_outputs[0]["function"]["_stream"]
