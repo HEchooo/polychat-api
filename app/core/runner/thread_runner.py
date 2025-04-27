@@ -55,6 +55,7 @@ class ThreadRunner:
         self.stream = stream
         self.max_step = llm_settings.LLM_MAX_STEP
         self.event_handler: StreamEventHandler = None
+        self.max_chat_history = llm_settings.MAX_CHAT_HISTORY
 
     def run(self):
         """
@@ -120,6 +121,17 @@ class ThreadRunner:
         chat_messages = self.__generate_chat_messages(
             MessageService.get_message_list(session=self.session, thread_id=run.thread_id)
         )
+    
+        if isinstance(chat_messages, list) and len(chat_messages) > self.max_chat_history:
+            start_idx = len(chat_messages) - self.max_chat_history
+            for i in range(start_idx - 1, -1, -1):
+                if chat_messages[i].get("role") == "user":
+                    chat_messages = chat_messages[i:]
+                    break
+            else:
+                chat_messages = chat_messages[-self.max_chat_history:]
+            logging.info("chat messages is too long, truncate to ensure start with user before last %d messages", self.max_chat_history)
+    
         tool_call_messages = [
             msg for step in run_steps if step.type == "tool_calls" and step.status == "completed"
             for msg in self.__convert_assistant_tool_calls_to_chat_messages(step)

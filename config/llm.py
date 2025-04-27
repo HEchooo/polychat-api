@@ -9,6 +9,7 @@ class LLMSettings(BaseSettings):
     OPENAI_API_BASE: str = ""
     OPENAI_API_KEY: str = "xxxx"
     LLM_MAX_STEP: int = 25
+    MAX_CHAT_HISTORY = 10
 
     class Config(object):
         env_file = ".env"

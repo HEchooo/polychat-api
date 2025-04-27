@@ -121,6 +121,7 @@ services:
       OPENAI_API_BASE: http://172.31.19.187:11343/v1
       OPENAI_API_KEY: ollama
       LLM_MAX_STEP: 25
+      MAX_CHAT_HISTORY: 10
 
       # tool
       TOOL_WORKER_NUM: 10
