@@ -290,6 +290,12 @@ const Conversation = ({ assistant }: Props, ref: any) => {
                         <TextArea
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    run();
+                                }
+                            }}
                             placeholder="Enter your message..."
                             bordered={false}
                             autoSize={{ minRows: 3, maxRows: 5 }}
