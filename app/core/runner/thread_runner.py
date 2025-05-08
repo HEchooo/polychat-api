@@ -23,6 +23,7 @@ from app.core.runner.utils.tool_call_util import (
     tool_call_id,
     tool_call_output,
 )
+from app.core.runner.utils.system_prompt_util import SystemPromptUtils
 from app.core.tools import find_tools, BaseTool
 from app.libs.thread_executor import get_executor_for_config, run_with_executor
 from app.models.message import Message, MessageUpdate
@@ -117,11 +118,18 @@ class ThreadRunner:
     ):
         logging.info("step %d is running", len(run_steps) + 1)
 
-        assistant_system_message = [msg_util.system_message(instruction)]
-        chat_messages = self.__generate_chat_messages(
+        chat_messages, system_message = self.__generate_chat_messages(
             MessageService.get_message_list(session=self.session, thread_id=run.thread_id)
         )
-    
+
+        instruction_final = instruction
+        if system_message:
+            if system_message.get("content"):
+                system_content = system_message.get("content")
+                instruction_final = SystemPromptUtils.merge(system_content, instruction)
+
+        assistant_system_message = [msg_util.system_message(instruction_final)]
+
         if isinstance(chat_messages, list) and len(chat_messages) > self.max_chat_history:
             start_idx = len(chat_messages) - self.max_chat_history
             for i in range(start_idx - 1, -1, -1):
@@ -333,6 +341,7 @@ class ThreadRunner:
         """
 
         chat_messages = []
+        system_message = None
         for message in messages:
             role = message.role
             if role == "user":
@@ -354,8 +363,14 @@ class ThreadRunner:
                     if content["type"] == "text":
                         message_content += content["text"]["value"]
                 chat_messages.append(msg_util.new_message(role, message_content))
+            elif role == "system":
+                message_content = ""
+                for content in message.content:
+                    if content["type"] == "text":
+                        message_content += content["text"]["value"]
+                system_message = msg_util.system_message(message_content)
 
-        return chat_messages
+        return chat_messages, system_message
 
     def __convert_assistant_tool_calls_to_chat_messages(self, run_step: RunStep):
         """
