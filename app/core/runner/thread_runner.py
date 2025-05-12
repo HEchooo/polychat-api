@@ -190,6 +190,18 @@ class ThreadRunner:
         message_creation_run_step = llm_callback_handler.step
 
         if msg_util.is_tool_call(response_msg):
+
+            logging.info("response_msg: %s", response_msg)
+            
+            if response_msg.content and response_msg.content.strip():
+                logging.info("Tool call has message content, saving to database: %s", response_msg.content)
+                initial_message = MessageService.modify_message_sync(
+                    session=self.session,
+                    thread_id=run.thread_id,
+                    message_id=llm_callback_handler.message.id,
+                    body=MessageUpdate(content=response_msg.content),
+                )
+            
             # tool & tool_call definition dict
             tool_calls = [tool_call_recognize(tool_call, tools) for tool_call in response_msg.tool_calls]
 
@@ -225,9 +237,42 @@ class ThreadRunner:
                         tool_stream = tool_outputs[0]["function"]["_stream"]
 
                         def wrap_stream(tool_chunk_iter):
+                            buffer = "" 
+                            prefix_checked = False
+                            matched_prefix = None
+
                             for chunk in tool_chunk_iter:
                                 if chunk.strip():
                                     for char in chunk:
+                                        if not prefix_checked:
+                                            buffer += char
+                                            if len(buffer) >= 6:
+                                                prefix = buffer[:6]
+                                                matched_prefix = prefix
+                                                prefix_checked = True
+
+                                                if matched_prefix == "RC0002":
+                                                    remaining = buffer[6:]  
+                                                else:
+                                                    remaining = buffer  
+
+                                                for c in remaining:
+                                                    yield ChatCompletionChunk(
+                                                        id="chatcmpl",
+                                                        object="chat.completion.chunk",
+                                                        created=0,
+                                                        model="model",
+                                                        choices=[
+                                                            Choice(
+                                                                index=0,
+                                                                delta=ChoiceDelta(content=c, role="assistant"),
+                                                                finish_reason=None,
+                                                            )
+                                                        ],
+                                                    )
+                                                buffer = ""  
+                                            continue 
+
                                         yield ChatCompletionChunk(
                                             id="chatcmpl",
                                             object="chat.completion.chunk",
@@ -241,6 +286,22 @@ class ThreadRunner:
                                                 )
                                             ],
                                         )
+
+                            if matched_prefix == "RC0002":
+                                for c in "\t] \t }":
+                                    yield ChatCompletionChunk(
+                                        id="chatcmpl",
+                                        object="chat.completion.chunk",
+                                        created=0,
+                                        model="model",
+                                        choices=[
+                                            Choice(
+                                                index=0,
+                                                delta=ChoiceDelta(content=c, role="assistant"),
+                                                finish_reason=None,
+                                            )
+                                        ],
+                                    )
 
                             yield ChatCompletionChunk(
                                 id="chatcmpl",
@@ -303,7 +364,7 @@ class ThreadRunner:
             else:
                 self.event_handler.pub_run_step_completed(new_run_step)
                 return True
-
+        logging.info("response_msg create new_message: %s", response_msg)
         new_message = MessageService.modify_message_sync(
             session=self.session,
             thread_id=run.thread_id,
