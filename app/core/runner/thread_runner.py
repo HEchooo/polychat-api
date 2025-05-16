@@ -1,7 +1,7 @@
 from functools import partial
 import logging
 import traceback
-
+import json
 from typing import List, Iterator
 from concurrent.futures import Executor
 
@@ -56,7 +56,7 @@ class ThreadRunner:
         self.stream = stream
         self.max_step = llm_settings.LLM_MAX_STEP
         self.event_handler: StreamEventHandler = None
-        self.max_chat_history = llm_settings.MAX_CHAT_HISTORY
+        self.max_chat_history = 6
 
     def run(self):
         """
@@ -122,29 +122,179 @@ class ThreadRunner:
             MessageService.get_message_list(session=self.session, thread_id=run.thread_id)
         )
 
-        instruction_final = instruction
-        if system_message:
-            if system_message.get("content"):
-                system_content = system_message.get("content")
-                instruction_final = SystemPromptUtils.merge(system_content, instruction)
-
-        assistant_system_message = [msg_util.system_message(instruction_final)]
-
-        if isinstance(chat_messages, list) and len(chat_messages) > self.max_chat_history:
-            start_idx = len(chat_messages) - self.max_chat_history
-            for i in range(start_idx - 1, -1, -1):
-                if chat_messages[i].get("role") == "user":
-                    chat_messages = chat_messages[i:]
+        # get user info message
+        system_user_message = None
+        system_user_index = None
+        extracted_system_text = None
+        for idx, msg in enumerate(chat_messages):
+            if msg.get("role") != "user":
+                continue
+            content = msg.get("content")
+            if isinstance(content, str) and content.startswith("SYSTEM:"):
+                system_user_message = msg
+                system_user_index = idx
+                extracted_system_text = content[len("SYSTEM:"):].strip()
+                break
+            if isinstance(content, list):
+                for item in content:
+                    if item.get("type") == "text" and item.get("text", "").startswith("SYSTEM:"):
+                        system_user_message = msg
+                        system_user_index = idx
+                        extracted_system_text = item["text"][len("SYSTEM:"):].strip()
+                        break
+                if extracted_system_text is not None:
                     break
-            else:
-                chat_messages = chat_messages[-self.max_chat_history:]
-            logging.info("chat messages is too long, truncate to ensure start with user before last %d messages", self.max_chat_history)
-    
+        if system_user_index is not None:
+            del chat_messages[system_user_index]
+        extracted_system_text = f"{extracted_system_text};thread_id:{run.thread_id}"
+        logging.info("extracted_system_text: %s", extracted_system_text)
+
+        logging.info("chat_messages before processing: %s", chat_messages)
+
+        original_assistant_indices = [
+            (idx, "CS0001" in msg.get("content", ""))
+            for idx, msg in enumerate(chat_messages)
+            if msg.get("role") == "assistant"
+        ]
+        last_assistant_idx, is_last_cs0001 = original_assistant_indices[-1] if original_assistant_indices else (-1, False)
+
+        cs0001_to_delete_indices = set()
+
+        for idx, is_cs0001 in original_assistant_indices:
+            if not is_cs0001:
+                continue
+            if idx != last_assistant_idx:
+                cs0001_to_delete_indices.add(idx)
+                if idx - 1 >= 0 and chat_messages[idx - 1].get("role") == "user":
+                    cs0001_to_delete_indices.add(idx - 1)
+
+        if not is_last_cs0001 and last_assistant_idx != -1:
+            cs0001_to_delete_indices.add(last_assistant_idx)
+            if last_assistant_idx - 1 >= 0 and chat_messages[last_assistant_idx - 1].get("role") == "user":
+                cs0001_to_delete_indices.add(last_assistant_idx - 1)
+
+        chat_messages = [
+            msg for idx, msg in enumerate(chat_messages) if idx not in cs0001_to_delete_indices
+        ]
+
+        chat_messages = [
+            msg for msg in chat_messages
+            if not (
+                msg.get("role") == "assistant"
+                and isinstance(msg.get("content"), str)
+                and "CS0002" in msg.get("content")
+            )
+        ]
+
         tool_call_messages = [
             msg for step in run_steps if step.type == "tool_calls" and step.status == "completed"
             for msg in self.__convert_assistant_tool_calls_to_chat_messages(step)
         ]
-        messages = assistant_system_message + memory.integrate_context(chat_messages) + tool_call_messages
+
+        logging.info("chat_messages before: %s", chat_messages)
+
+        sr_rc_to_delete_indices = set()
+        for idx, msg in enumerate(chat_messages):
+            if (
+                msg.get("role") == "assistant"
+                and isinstance(msg.get("content"), str)
+                and ("SR0001" in msg["content"] or "RC0001" in msg["content"])
+            ):
+                is_last = (idx == len(chat_messages) - 1)
+                should_delete = False
+
+                if not is_last:
+                    next_msg = chat_messages[idx + 1]
+                    next_content = next_msg.get("content", "")
+                    logging.info("Found SR0001 or RC0001, idx: %s, next_content: %s", idx, next_content)
+
+                    if isinstance(next_content, str):
+                        logging.info("next_content: %s", next_content)
+                        if "SR0002" not in next_content and "RC0002" not in next_content:
+                            should_delete = True
+                    elif isinstance(next_content, list):
+                        next_str = json.dumps(next_content)
+                        if "SR0002" not in next_str and "RC0002" not in next_str:
+                            should_delete = True
+                else:
+                    if len(tool_call_messages) == 0:
+                        should_delete = True
+
+                if should_delete:
+                    sr_rc_to_delete_indices.add(idx)
+                    if idx > 0 and chat_messages[idx - 1].get("role") == "user":
+                        sr_rc_to_delete_indices.add(idx - 1)
+        logging.info("sr_rc_to_delete_indices after: %s", sr_rc_to_delete_indices)
+        chat_messages = [
+            msg for idx, msg in enumerate(chat_messages) if idx not in sr_rc_to_delete_indices
+        ]
+        logging.info("chat_messages after: %s", chat_messages)
+        assistant_system_message = []
+        if system_message:
+            if system_message.get("content") and system_message.get("content").strip():
+                assistant_system_message.append(system_message)
+        instruction = extracted_system_text + "\n" + instruction
+        assistant_system_message.append(msg_util.system_message(instruction))
+
+        # clean the messages, remove consecutive user messages
+        # cleaned_chat_messages = []
+        # previous_role = None
+
+        # for msg in chat_messages:
+        #     current_role = msg.get("role")
+        #     if current_role == "user" and previous_role == "user":
+        #         cleaned_chat_messages[-1] = msg  
+        #     else:
+        #         cleaned_chat_messages.append(msg)
+        #     previous_role = current_role
+
+        # chat_messages = cleaned_chat_messages
+
+
+        preserved_messages = []
+        user_history_summary = ""
+        if isinstance(chat_messages, list) and len(chat_messages) > self.max_chat_history:
+            start_idx = len(chat_messages) - self.max_chat_history
+            for i in range(start_idx - 1, -1, -1):
+                if chat_messages[i].get("role") == "user":
+                    preserved_messages = chat_messages[i:]  
+                    truncated_messages = chat_messages[:i] 
+                    break
+            else:
+                preserved_messages = chat_messages[-self.max_chat_history:]
+                truncated_messages = chat_messages[:-self.max_chat_history]
+
+            logging.info("chat messages is too long, truncate to ensure start with user before last %d messages", self.max_chat_history)
+
+            user_msgs = []
+            for msg in truncated_messages:
+                if msg.get("role") == "user":
+                    content = msg.get("content")
+                    if isinstance(content, list):
+                        extracted_texts = []
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                text_val = item.get("text", "")
+                                if isinstance(text_val, str):
+                                    extracted_texts.append(text_val)
+                        content = "；".join(filter(None, extracted_texts))
+                    elif not isinstance(content, str):
+                        content = str(content)
+                    user_msgs.append(content)
+            if user_msgs:
+                logging.info("user_msgs: %s", user_msgs)
+                last_3_user_msgs = user_msgs[-3:]
+                user_history_summary = "；".join(last_3_user_msgs)
+        else:
+            preserved_messages = chat_messages
+            user_history_array = []
+        
+        new_system_message = msg_util.system_message( f"""用户最近还曾问过：{user_history_summary}""")
+        logging.info("new_system_message: %s", new_system_message)
+        logging.info("preserved_messages: %s", preserved_messages)
+
+        assistant_system_message.append(new_system_message)
+        messages = assistant_system_message + memory.integrate_context(preserved_messages) + tool_call_messages
 
         response_stream = llm.run(
             messages=messages,

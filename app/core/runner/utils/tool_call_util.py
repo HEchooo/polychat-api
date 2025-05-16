@@ -33,8 +33,18 @@ def tool_call_recognize(tool_call: ChatCompletionMessageToolCall, tools: List[Ba
     return (tool, json.loads(tool_call.json()))
 
 
+def safe_json_load(arguments_str: str) -> dict:
+    try:
+        return json.loads(arguments_str)
+    except json.JSONDecodeError:
+        import re
+        match = re.match(r'^\s*(\{.*?\})', arguments_str, re.DOTALL)
+        if match:
+            return json.loads(match.group(1)) 
+        raise 
+
 def internal_tool_call_invoke(tool: BaseTool, tool_call_dict: dict) -> dict:
-    args = json.loads(tool_call_dict["function"]["arguments"])
+    args = safe_json_load(tool_call_dict["function"]["arguments"])
     tool_name = tool_call_dict["function"].get("name")
     logging.info("tool_call_dict function %s", tool_call_dict["function"])
     if tool_name in tool_settings.SPECIAL_STREAM_TOOLS:
