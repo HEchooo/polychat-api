@@ -151,32 +151,27 @@ class ThreadRunner:
 
         logging.info("chat_messages before processing: %s", chat_messages)
 
-        original_assistant_indices = [
-            (idx, "CS0001" in msg.get("content", ""))
-            for idx, msg in enumerate(chat_messages)
-            if msg.get("role") == "assistant"
-        ]
-        last_assistant_idx, is_last_cs0001 = original_assistant_indices[-1] if original_assistant_indices else (-1, False)
+        cs_to_delete_indices = set()
+        target_types = {"CS0001", "CS0002"}
 
-        cs0001_to_delete_indices = set()
+        last_index = len(chat_messages) - 1
 
-        for idx, is_cs0001 in original_assistant_indices:
-            if not is_cs0001:
+        for idx, msg in enumerate(chat_messages):
+            if msg.get("role") != "assistant":
                 continue
-            if idx != last_assistant_idx:
-                cs0001_to_delete_indices.add(idx)
-                if idx - 1 >= 0 and chat_messages[idx - 1].get("role") == "user":
-                    cs0001_to_delete_indices.add(idx - 1)
 
-        if not is_last_cs0001 and last_assistant_idx != -1:
-            cs0001_to_delete_indices.add(last_assistant_idx)
-            if last_assistant_idx - 1 >= 0 and chat_messages[last_assistant_idx - 1].get("role") == "user":
-                cs0001_to_delete_indices.add(last_assistant_idx - 1)
+            content = msg.get("content", "")
+            if not any(content.startswith(prefix) for prefix in target_types):
+                continue
+
+            if idx != last_index:
+                cs_to_delete_indices.add(idx)
+                if idx - 1 >= 0 and chat_messages[idx - 1].get("role") == "user":
+                    cs_to_delete_indices.add(idx - 1)
 
         chat_messages = [
-            msg for idx, msg in enumerate(chat_messages) if idx not in cs0001_to_delete_indices
+            msg for idx, msg in enumerate(chat_messages) if idx not in cs_to_delete_indices
         ]
-
         chat_messages = [
             msg for msg in chat_messages
             if not (
