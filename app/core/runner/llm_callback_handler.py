@@ -23,26 +23,36 @@ class LLMCallbackHandler:
         self.on_message_create_func = on_message_create_func
         self.message = None
         self.event_handler: StreamEventHandler = event_handler
+
         self._buffer_prefix = ""
-        self._matched_prefix = None  
-        self.remain_text = ""  
-        self._sr0002_started = False  
+        self._matched_prefix = None
+        self.remain_text = ""
+        self._phase_b_started = False
+        self._two_phase_detected = False
+
+        self._phase_a_prefixes = {"RC0001", "CS0001", "SR0001", "OD0001"}
+        self._phase_a_buffered_prefixes = {"CS0001", "SR0001", "OD0001"} 
+        self._phase_b_prefixes = {
+            "RC0001": "RC0002",
+            "CS0001": "CS0002",
+            "SR0001": "SR0002",
+            "OD0001": "OD0002",
+        }
+        self._special_tail_only_prefixes = {"AD0001", "NC0001"}
 
     def _process_prefix_buffer(self, incoming_text: str) -> str:
         self._buffer_prefix += incoming_text
-
-        scan_window = self._buffer_prefix[:150]
+        scan_window = self._buffer_prefix[:30]
 
         match = re.search(r'([A-Z]{2}\d{4})', scan_window)
-
         if match:
             self._matched_prefix = match.group(1)
             cut_index = match.end()
             suffix = self._buffer_prefix[cut_index:]
 
-            if self._matched_prefix in ("RC0001", "CS0001", "SR0001", "AD0001", "NC0001", "OD0001"):
+            if self._matched_prefix in self._phase_a_prefixes or self._matched_prefix in self._special_tail_only_prefixes:
                 result = '{ "msgs": [' + suffix
-            elif self._matched_prefix in ("CS0002", "SR0002", "RC0002","OD0002"):
+            elif self._matched_prefix in self._phase_b_prefixes.values():
                 result = suffix
             else:
                 self._matched_prefix = None
@@ -51,7 +61,7 @@ class LLMCallbackHandler:
             self._buffer_prefix = ""
             return result
 
-        if len(self._buffer_prefix) > 150:
+        if len(self._buffer_prefix) > 30:
             logging.warning("Prefix not found, forcing passthrough")
             result = self._buffer_prefix
             self._buffer_prefix = ""
@@ -63,19 +73,16 @@ class LLMCallbackHandler:
         self,
         response_stream: Stream[ChatCompletionChunk],
     ) -> ChatCompletionMessage:
-        """
-        Handle LLM response stream
-        :param response_stream: ChatCompletionChunk stream
-        :return: ChatCompletionMessage
-        """
         message = ChatCompletionMessage(content="", role="assistant", tool_calls=[])
         index = 0
         raw_content = ""
         final_content = ""
 
         try:
+            last_chunk = None
             for chunk in response_stream:
-                # logging.debug(chunk)
+                last_chunk = chunk
+                logging.debug("llm response chunk: %s", chunk)
 
                 if chunk.usage:
                     self.event_handler.pub_message_usage(chunk)
@@ -108,25 +115,30 @@ class LLMCallbackHandler:
 
                     raw_content += delta.content
 
-                    if self._matched_prefix == "SR0001":
-                            self.remain_text += delta.content
+                    if self._matched_prefix in self._phase_a_buffered_prefixes:
+                        self.remain_text += delta.content
 
-                            if self._sr0002_started:
-                                continue
+                        if self._phase_b_started:
+                            self._two_phase_detected = True
+                            continue
 
-                            match = re.search(r"S[A-Z]\d{4}", self.remain_text)
-                            if match and match.group() == "SR0002":
-                                self._sr0002_started = True
-                                logging.info("Detected SR0002 after SR0001, starting to buffer SR0002 block")
-                                continue  
-                            elif match:
-                                delta_to_send = self.remain_text
-                                self.remain_text = ""
-                            else:
-                                continue
-                    elif self._sr0002_started:
+                        expected_b = self._phase_b_prefixes.get(self._matched_prefix)
+                        match = re.search(r'[A-Z]{2}\d{4}', self.remain_text)
+                        if match and match.group() == expected_b:
+                            self._phase_b_started = True
+                            self._two_phase_detected = True
+                            logging.info(f"Detected {expected_b} after {self._matched_prefix}, start buffering")
+                            continue
+                        elif match:
+                            delta_to_send = self.remain_text
+                            self.remain_text = ""
+                        else:
+                            continue
+
+                    elif self._phase_b_started:
                         self.remain_text += delta.content
                         continue
+
                     else:
                         if self._matched_prefix is None:
                             processed = self._process_prefix_buffer(delta.content)
@@ -135,9 +147,7 @@ class LLMCallbackHandler:
                             delta_to_send = processed
                         else:
                             delta_to_send = delta.content
-                    # final_content += delta_to_send
-                    # self.event_handler.pub_message_delta(self.message.id, index, delta_to_send, delta.role)
-                    # index += 1
+
                     if delta_to_send:
                         final_content += delta_to_send
                         self.event_handler.pub_message_delta(self.message.id, index, delta_to_send, delta.role)
@@ -147,46 +157,52 @@ class LLMCallbackHandler:
             logging.error("handle_llm_response error: %s", e)
             raise e
 
+        if last_chunk and last_chunk.usage:
+            usage = last_chunk.usage
+            logging.info("prompt_tokens: %s, completion_tokens: %s, total_tokens: %s",
+                         usage.prompt_tokens, usage.completion_tokens, usage.total_tokens)
+        else:
+            logging.info("No usage information in the last chunk: %s", last_chunk)
+        
         if self._buffer_prefix:
             final_content += self._buffer_prefix
             self.event_handler.pub_message_delta(self.message.id, index, self._buffer_prefix, "assistant")
             index += 1
             self._buffer_prefix = ""
+
         logging.info("llm response message _matched_prefix: %s", self._matched_prefix)
 
         if self.remain_text:
-            if self._sr0002_started:
-                logging.info("llm response message SR0001 started, remain_text: %s", self.remain_text)
-                delta_to_emit = re.sub(r"SR0002", ",", self.remain_text)
+            if self._two_phase_detected:
+                delta_to_emit = re.sub(r'[A-Z]{2}\d{4}', ",", self.remain_text, count=1)
+                logging.info("Two-phase detected, emit with patch")
             else:
-                logging.info("llm response message only SR0001 started, remain_text: %s", self.remain_text)
                 delta_to_emit = self.remain_text
-
+                logging.info("Single phase, emit original remain_text")
             final_content += delta_to_emit
             self.event_handler.pub_message_delta(self.message.id, index, delta_to_emit, "assistant")
             index += 1
             self.remain_text = ""
-        if self._matched_prefix in ("RC0001", "CS0001", "SR0001", "OD0001"):
+
+        # === 拼尾逻辑 ===
+        tail = ""
+        if self._matched_prefix in self._phase_a_prefixes:
             logging.info("llm response message _matched_prefix with %s", self._matched_prefix)
             trimmed = re.sub(r'[\s\\]+', '', final_content)
             if trimmed.endswith(",") or trimmed.endswith("}]}"):
-                logging.info("llm response message ends with ','")
                 tail = ""
             else:
                 tail = ","
-            if self._sr0002_started:
-                logging.info("llm response message _matched_prefix with SR0002 started final_content: %s", final_content)
+            if self._two_phase_detected:
                 if not final_content.strip().endswith("]}"):
                     tail = "]}"
                 else:
                     tail = ""
-        elif self._matched_prefix in ("CS0002", "SR0002", "AD0001", "NC0001","RC0002", "OD0002"):
+
+        elif self._matched_prefix in self._phase_b_prefixes.values() or self._matched_prefix in self._special_tail_only_prefixes:
             trimmed = re.sub(r'[\s\\]+', '', final_content)
-            if trimmed.endswith("]}"):
-                logging.info("llm response message ends with ']}'")
-                tail = ""
-            else:
-                tail = "]}"
+            tail = "" if trimmed.endswith("]}") else "]}"
+
         else:
             logging.info("llm response message: %s", raw_content)
             logging.info("llm response format message: %s", final_content)
@@ -194,10 +210,11 @@ class LLMCallbackHandler:
             return message
 
         final_content += tail
-        self.event_handler.pub_message_delta(self.message.id, index, tail, "assistant")
+        if tail:
+            self.event_handler.pub_message_delta(self.message.id, index, tail, "assistant")
+
         logging.info("llm response message: %s", raw_content)
         logging.info("llm response format message: %s", final_content)
 
         message.content = raw_content
-
         return message

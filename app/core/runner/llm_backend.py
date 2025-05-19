@@ -32,6 +32,9 @@ class LLMBackend:
             "messages": messages,
             "model": model,
             "stream": stream,
+            "stream_options": {
+                "include_usage": True,
+            },
         }
         if extra_body:
             model_params = extra_body.get("model_params")

@@ -32,6 +32,7 @@ class ToolSettings(BaseSettings):
     R2R_PASSWORD: str = None
     R2R_SEARCH_LIMIT: int = 10
     SPECIAL_STREAM_TOOLS: list[str] = ["product_recommendation_api"]
+    SPECIAL_NORMAL_TOOLS: list[str] = ["combine_search_v2"]
 
     class Config(object):
         env_file = ".env"

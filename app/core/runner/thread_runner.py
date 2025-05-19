@@ -377,8 +377,10 @@ class ThreadRunner:
 
                     tool_name = tool_outputs[0]["function"].get("name")
                     is_special_stream_tool = tool_name in tool_settings.SPECIAL_STREAM_TOOLS
+                    is_special_normal_tool = tool_name in tool_settings.SPECIAL_NORMAL_TOOLS
 
                     if is_special_stream_tool:
+                        logging.info("Special stream tool detected: %s", tool_outputs[0]["function"])
                         tool_stream = tool_outputs[0]["function"]["_stream"]
 
                         def wrap_stream(tool_chunk_iter):
@@ -479,7 +481,38 @@ class ThreadRunner:
                         self.event_handler.pub_run_completed(run)
 
                         return False
+                    elif is_special_normal_tool:
+                        logging.info("Special tool output detected: %s", tool_outputs[0]["function"]["output"])
+                        output_data = tool_outputs[0]["function"]["output"]
+                        final_output = output_data
 
+                        try:
+                            parsed_output = json.loads(output_data)
+                            if isinstance(parsed_output, dict) and "data" in parsed_output:
+                                final_output = json.dumps(parsed_output["data"], ensure_ascii=False)
+                        except Exception as e:
+                            logging.warning("Failed to parse tool output json: %s", e)
+                        response_msg = llm_callback_handler.handle_llm_response(fake_single_chunk_stream(final_output))
+
+                        new_message = MessageService.modify_message_sync(
+                            session=self.session,
+                            thread_id=run.thread_id,
+                            message_id=llm_callback_handler.message.id,
+                            body=MessageUpdate(content=response_msg.content),
+                        )
+                        self.event_handler.pub_message_completed(new_message)
+
+                        new_step = RunStepService.update_step_details(
+                            session=self.session,
+                            run_step_id=llm_callback_handler.step.id,
+                            step_details={"type": "message_creation", "message_creation": {"message_id": new_message.id}},
+                            completed=True,
+                        )
+                        RunService.to_completed(session=self.session, run_id=run.id)
+                        self.event_handler.pub_run_step_completed(new_step)
+                        self.event_handler.pub_run_completed(run)
+
+                        return False
                     new_run_step = RunStepService.update_step_details(
                         session=self.session,
                         run_step_id=new_run_step.id,
@@ -589,3 +622,27 @@ class ThreadRunner:
             msg_util.tool_call_result(tool_call_id(tool_call), tool_call_output(tool_call)) for tool_call in tool_calls
         ]
         return tool_call_requests + tool_call_outputs
+
+def fake_single_chunk_stream(text: str) -> Iterator[ChatCompletionChunk]:
+    yield ChatCompletionChunk(
+        id="chatcmpl",
+        object="chat.completion.chunk",
+        created=0,
+        model="model",
+        choices=[
+            Choice(
+                index=0,
+                delta=ChoiceDelta(content=text, role="assistant"),
+                finish_reason=None,
+            )
+        ],
+    )
+    yield ChatCompletionChunk(
+        id="chatcmpl",
+        object="chat.completion.chunk",
+        created=0,
+        model="model",
+        choices=[
+            Choice(index=0, delta=ChoiceDelta(content=None), finish_reason="stop")
+        ],
+    )
