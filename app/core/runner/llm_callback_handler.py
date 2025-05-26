@@ -5,6 +5,7 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletionMessage
 
 from app.core.runner.pub_handler import StreamEventHandler
 from app.core.runner.utils import message_util
+from config.llm import tool_settings
 
 
 class LLMCallbackHandler:
@@ -38,7 +39,9 @@ class LLMCallbackHandler:
             "SR0001": "SR0002",
             "OD0001": "OD0002",
         }
-        self._special_tail_only_prefixes = {"AD0001", "NC0001"}
+        base_special_tags = {"AD0001", "NC0001"}
+        filter_tags = set(tool_settings.FILTER_TAGS) if tool_settings.FILTER_TAGS else set()
+        self._special_tail_only_prefixes = base_special_tags | filter_tags
 
     def _process_prefix_buffer(self, incoming_text: str) -> str:
         self._buffer_prefix += incoming_text

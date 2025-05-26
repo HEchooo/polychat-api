@@ -224,6 +224,25 @@ class ThreadRunner:
             msg for idx, msg in enumerate(chat_messages) if idx not in sr_rc_to_delete_indices
         ]
         logging.info("chat_messages after: %s", chat_messages)
+
+        if tool_settings.FILTER_TAGS:
+            filter_to_delete_indices = set()
+            for idx, msg in enumerate(chat_messages):
+                if msg.get("role") == "assistant" and isinstance(msg.get("content"), str):
+                    content = msg.get("content")
+                    for tag in tool_settings.FILTER_TAGS:
+                        if tag in content:
+                            filter_to_delete_indices.add(idx)
+                            if idx > 0 and chat_messages[idx - 1].get("role") == "user":
+                                filter_to_delete_indices.add(idx - 1)
+                            break
+            
+            logging.info("filter_to_delete_indices: %s", filter_to_delete_indices)
+            logging.info("filtered tags: %s", tool_settings.FILTER_TAGS)
+            chat_messages = [
+                msg for idx, msg in enumerate(chat_messages) if idx not in filter_to_delete_indices
+            ]
+            logging.info("chat_messages after tag filtering: %s", chat_messages)
         assistant_system_message = []
         if system_message:
             if system_message.get("content") and system_message.get("content").strip():

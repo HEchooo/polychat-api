@@ -144,6 +144,8 @@ services:
 
       # special stream tools
       SPECIAL_STREAM_TOOLS: '["product_recommendation_api"]'
+      SPECIAL_NORMAL_TOOLS: '["combine_search_v2"]'
+      FILTER_TAGS: '["NC0002"]'
 
        # secret
       APP_AES_ENCRYPTION_KEY: 7700b2f9c8dd982dfaddf8b47a92f1d900507ee8ac335f96a64e9ca0f018b195
