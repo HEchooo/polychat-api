@@ -88,6 +88,14 @@ export const AssistantsFrom = (props: FormProps) => {
             }
             tools.push(...actions);
             values.tools = tools.length > 0 ? tools : [];
+            
+            // Handle model selection: use custom model if provided
+            if (values.custom_model && values.custom_model.trim()) {
+                values.model = values.custom_model.trim();
+            }
+            // Remove custom_model field to avoid sending to backend
+            delete values.custom_model;
+            
             switch (type) {
                 case 'add':
                 case 'copy':
@@ -187,8 +195,31 @@ export const AssistantsFrom = (props: FormProps) => {
                         //     : undefined;
                     });
                 }
+                
+                // Handle model display: check if current model is in predefined list
+                let modelValue = res.model;
+                let customModelValue = '';
+                const isModelInList = modelList.some(item => item.value === res.model);
+                
+                if (!isModelInList && res.model) {
+                    // If model is not in predefined list, treat it as custom model
+                    customModelValue = res.model;
+                    modelValue = ''; // Clear dropdown selection
+                }
+                
                 form.resetFields();
-                form.setFieldsValue({ ...res, ...{ code, file_search, search, file_ids: res.file_ids, actions } });
+                form.setFieldsValue({ 
+                    ...res, 
+                    ...{ 
+                        code, 
+                        file_search, 
+                        search, 
+                        file_ids: res.file_ids, 
+                        actions,
+                        model: modelValue,
+                        custom_model: customModelValue
+                    } 
+                });
                 if (!isEmpty(res?.file_ids)) {
                     runFileName({
                         ids: res.file_ids
@@ -270,6 +301,20 @@ export const AssistantsFrom = (props: FormProps) => {
                                         );
                                     })}
                                 </Select>
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    
+                    <Row>
+                        <Col span={24}>
+                            <Form.Item 
+                                labelCol={{ span: 24 }} 
+                                wrapperCol={{ span: 24 }} 
+                                label="Custom Model (Optional)" 
+                                name="custom_model"
+                                tooltip="Enter custom model name. If filled, this will be used instead of the selected model above"
+                            >
+                                <Input placeholder="e.g: gemini-2.5-pro, or other custom model names" />
                             </Form.Item>
                         </Col>
                     </Row>
