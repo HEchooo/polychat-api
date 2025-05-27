@@ -52,10 +52,8 @@ class LLMBackend:
                     raise ValueError("n is not allowed in model_params")
                 chat_params.update(model_params)
             
-            # Add other extra_body parameters directly to chat_params
-            for key, value in extra_body.items():
-                if key != "model_params":
-                    chat_params[key] = value
+            # Set extra_body for the request
+            chat_params["extra_body"] = extra_body
         if stream_options:
             if isinstance(stream_options, dict):
                 if "include_usage" in stream_options:
