@@ -90,7 +90,7 @@ class ThreadRunner:
                     instructions += [instruction_supplement]
             instruction = "\n".join(instructions)
 
-            llm = self.__init_llm_backend(run.assistant_id)
+            llm = self.__init_llm_backend(run.assistant_id, run.model)
             loop = True
             while loop:
                 run_steps = RunStepService.get_run_step_list(
@@ -593,7 +593,7 @@ class ThreadRunner:
 
         return False
 
-    def __init_llm_backend(self, assistant_id):
+    def __init_llm_backend(self, assistant_id, model: str = None):
         if settings.AUTH_ENABLE:
             # init llm backend with token id
             token_id = TokenRelationService.get_token_id_by_relation(
@@ -602,8 +602,13 @@ class ThreadRunner:
             token = TokenService.get_token_by_id(self.session, token_id)
             return LLMBackend(base_url=token.llm_base_url, api_key=token.llm_api_key)
         else:
-            # init llm backend with llm settings
-            return LLMBackend(base_url=llm_settings.OPENAI_API_BASE, api_key=llm_settings.OPENAI_API_KEY)
+            # init llm backend with multi-provider settings based on model
+            if model:
+                provider_config = llm_settings.get_provider_config(model)
+                return LLMBackend(base_url=provider_config["base_url"], api_key=provider_config["api_key"])
+            else:
+                # fallback to local provider
+                return LLMBackend(base_url=llm_settings.LOCAL_BASE_URL, api_key=llm_settings.LOCAL_API_KEY)
 
     def __generate_chat_messages(self, messages: List[Message]):
         """

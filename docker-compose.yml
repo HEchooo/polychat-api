@@ -117,9 +117,23 @@ services:
       S3_SECRET_KEY: minioadmin
       S3_REGION: us-east-1
 
-      # llm
-      OPENAI_API_BASE: http://172.31.19.187:11343/v1
-      OPENAI_API_KEY: ollama
+      # llm - multi-provider configurations
+      # OpenAI
+      OPENAI_BASE_URL: https://api.openai.com/v1
+      OPENAI_KEY: ""
+      
+      # Alibaba Cloud (Qwen)
+      ALIBABA_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+      ALIBABA_API_KEY: ""
+      
+      # Google Cloud (Gemini)
+      GCP_BASE_URL: https://generativelanguage.googleapis.com/v1beta
+      GCP_API_KEY: ""
+      
+      # Local/Default provider
+      LOCAL_BASE_URL: http://172.31.19.187:11343/v1
+      LOCAL_API_KEY: ollama
+      
       LLM_MAX_STEP: 25
       MAX_CHAT_HISTORY: 10
 
