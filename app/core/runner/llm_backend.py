@@ -36,12 +36,26 @@ class LLMBackend:
                 "include_usage": True,
             },
         }
+        
+        # Handle Gemini 2.5 series models special requirements
+        model_lower = model.lower()
+        if "gemini-2.5" in model_lower or "gemini2.5" in model_lower:
+            if extra_body is None:
+                extra_body = {}
+            extra_body["reasoning_effort"] = "none"
+            logging.info(f"Added reasoning_effort=none for Gemini 2.5 model: {model}")
+        
         if extra_body:
             model_params = extra_body.get("model_params")
             if model_params:
                 if "n" in model_params:
                     raise ValueError("n is not allowed in model_params")
                 chat_params.update(model_params)
+            
+            # Add other extra_body parameters directly to chat_params
+            for key, value in extra_body.items():
+                if key != "model_params":
+                    chat_params[key] = value
         if stream_options:
             if isinstance(stream_options, dict):
                 if "include_usage" in stream_options:
