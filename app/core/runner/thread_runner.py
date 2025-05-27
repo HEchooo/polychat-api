@@ -302,12 +302,11 @@ class ThreadRunner:
         else:
             preserved_messages = chat_messages
             user_history_array = []
-        
-        new_system_message = msg_util.system_message( f"""用户最近还曾问过：{user_history_summary}""")
-        logging.info("new_system_message: %s", new_system_message)
+                
+        new_user_message = msg_util.user_message( f"""用户最近还曾问过：{user_history_summary}""")
+        logging.info("new_user_message: %s", new_user_message)
         logging.info("preserved_messages: %s", preserved_messages)
-
-        assistant_system_message.append(new_system_message)
+        preserved_messages.insert(0, new_user_message)
         messages = assistant_system_message + memory.integrate_context(preserved_messages) + tool_call_messages
 
         response_stream = llm.run(
@@ -409,20 +408,17 @@ class ThreadRunner:
 
                             for chunk in tool_chunk_iter:
                                 if chunk.strip():
-                                    for char in chunk:
-                                        if not prefix_checked:
-                                            buffer += char
-                                            if len(buffer) >= 6:
-                                                prefix = buffer[:6]
-                                                matched_prefix = prefix
-                                                prefix_checked = True
+                                    if not prefix_checked:
+                                        buffer += chunk
+                                        if len(buffer) >= 6:
+                                            prefix = buffer[:6]
+                                            matched_prefix = prefix
+                                            prefix_checked = True
 
-                                                if matched_prefix == "RC0002":
-                                                    remaining = buffer[6:]  
-                                                else:
-                                                    remaining = buffer  
-
-                                                for c in remaining:
+                                            if matched_prefix == "RC0002":
+                                                # Skip the RC0002 prefix and output the remaining content
+                                                remaining = buffer[6:]
+                                                if remaining:
                                                     yield ChatCompletionChunk(
                                                         id="chatcmpl",
                                                         object="chat.completion.chunk",
@@ -431,30 +427,30 @@ class ThreadRunner:
                                                         choices=[
                                                             Choice(
                                                                 index=0,
-                                                                delta=ChoiceDelta(content=c, role="assistant"),
+                                                                delta=ChoiceDelta(content=remaining, role="assistant"),
                                                                 finish_reason=None,
                                                             )
                                                         ],
                                                     )
-                                                buffer = ""  
-                                            continue 
-
-                                        yield ChatCompletionChunk(
-                                            id="chatcmpl",
-                                            object="chat.completion.chunk",
-                                            created=0,
-                                            model="model",
-                                            choices=[
-                                                Choice(
-                                                    index=0,
-                                                    delta=ChoiceDelta(content=char, role="assistant"),
-                                                    finish_reason=None,
+                                            else:
+                                                # Output the entire buffer content
+                                                yield ChatCompletionChunk(
+                                                    id="chatcmpl",
+                                                    object="chat.completion.chunk",
+                                                    created=0,
+                                                    model="model",
+                                                    choices=[
+                                                        Choice(
+                                                            index=0,
+                                                            delta=ChoiceDelta(content=buffer, role="assistant"),
+                                                            finish_reason=None,
+                                                        )
+                                                    ],
                                                 )
-                                            ],
-                                        )
+                                            buffer = ""
+                                        continue
 
-                            if matched_prefix == "RC0002":
-                                for c in "\t] \t }":
+                                    # After prefix is checked, output chunks as received
                                     yield ChatCompletionChunk(
                                         id="chatcmpl",
                                         object="chat.completion.chunk",
@@ -463,11 +459,27 @@ class ThreadRunner:
                                         choices=[
                                             Choice(
                                                 index=0,
-                                                delta=ChoiceDelta(content=c, role="assistant"),
+                                                delta=ChoiceDelta(content=chunk, role="assistant"),
                                                 finish_reason=None,
                                             )
                                         ],
                                     )
+
+                            if matched_prefix == "RC0002":
+                                # Add closing characters for RC0002 format
+                                yield ChatCompletionChunk(
+                                    id="chatcmpl",
+                                    object="chat.completion.chunk",
+                                    created=0,
+                                    model="model",
+                                    choices=[
+                                        Choice(
+                                            index=0,
+                                            delta=ChoiceDelta(content="\t] \t }", role="assistant"),
+                                            finish_reason=None,
+                                        )
+                                    ],
+                                )
 
                             yield ChatCompletionChunk(
                                 id="chatcmpl",
