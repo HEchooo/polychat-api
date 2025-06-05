@@ -99,7 +99,7 @@ def _data_adjust(obj):
 
     for key, value in data.items():
         if isinstance(value, datetime):
-            data[key] = value.timestamp()
+            data[key] = round(value.timestamp() * 1000 / 1000)
     return data
 
 
