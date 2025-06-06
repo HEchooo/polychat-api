@@ -45,7 +45,8 @@ def is_tool_call(message: ChatCompletionMessage) -> bool:
     return bool(message.tool_calls)
 
 def merge_tool_call_delta(tool_calls, tool_call_delta):
-    if hasattr(tool_call_delta, 'index') and len(tool_calls) - 1 >= tool_call_delta.index:
+    index = getattr(tool_call_delta, 'index', None)
+    if index is not None and isinstance(index, int) and len(tool_calls) - 1 >= index:
         tool_call = tool_calls[tool_call_delta.index]
         
         if hasattr(tool_call_delta, 'function') and hasattr(tool_call_delta.function, 'arguments') and tool_call_delta.function.arguments is not None:

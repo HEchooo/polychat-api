@@ -152,9 +152,13 @@ class ThreadRunner:
         logging.info("chat_messages before processing: %s", chat_messages)
 
         cs_to_delete_indices = set()
+        cs_deleted_user_messages = []  
         target_types = {"CS0001", "CS0002"}
-
+        # target_types = {}
         last_index = len(chat_messages) - 1
+        
+        # Calculate the range of last max_chat_history messages
+        max_history_start_idx = max(0, len(chat_messages) - self.max_chat_history) if len(chat_messages) > self.max_chat_history else 0
 
         for idx, msg in enumerate(chat_messages):
             if msg.get("role") != "assistant":
@@ -166,8 +170,27 @@ class ThreadRunner:
 
             if idx != last_index:
                 cs_to_delete_indices.add(idx)
+                # Check if the user message before this CS message is in the last max_chat_history range
                 if idx - 1 >= 0 and chat_messages[idx - 1].get("role") == "user":
-                    cs_to_delete_indices.add(idx - 1)
+                    user_msg_idx = idx - 1
+                    if user_msg_idx >= max_history_start_idx:
+                        # This user message is in the last max_chat_history range, preserve its content
+                        user_content = chat_messages[user_msg_idx].get("content")
+                        if isinstance(user_content, list):
+                            extracted_texts = []
+                            for item in user_content:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    text_val = item.get("text", "")
+                                    if isinstance(text_val, str):
+                                        extracted_texts.append(text_val)
+                            user_content = "；".join(filter(None, extracted_texts))
+                        elif not isinstance(user_content, str):
+                            user_content = str(user_content)
+                        
+                        if user_content and user_content.strip():
+                            cs_deleted_user_messages.append(user_content)
+                    
+                    cs_to_delete_indices.add(user_msg_idx)
 
         chat_messages = [
             msg for idx, msg in enumerate(chat_messages) if idx not in cs_to_delete_indices
@@ -267,6 +290,30 @@ class ThreadRunner:
 
         preserved_messages = []
         user_history_summary = ""
+
+        consecutive_user_msgs = []
+        if isinstance(chat_messages, list) and len(chat_messages) > 0:
+            for i in range(len(chat_messages) - 2, -1, -1):
+                if chat_messages[i].get("role") == "user":
+                    content = chat_messages[i].get("content")
+                    if isinstance(content, list):
+                        extracted_texts = []
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                text_val = item.get("text", "")
+                                if isinstance(text_val, str):
+                                    extracted_texts.append(text_val)
+                        content = "；".join(filter(None, extracted_texts))
+                    elif not isinstance(content, str):
+                        content = str(content)
+                    
+                    if content and content.strip():
+                        consecutive_user_msgs.append(content)
+                else:
+                    break
+
+        consecutive_user_msgs.reverse()
+
         if isinstance(chat_messages, list) and len(chat_messages) > self.max_chat_history:
             start_idx = len(chat_messages) - self.max_chat_history
             for i in range(start_idx - 1, -1, -1):
@@ -295,17 +342,24 @@ class ThreadRunner:
                     elif not isinstance(content, str):
                         content = str(content)
                     user_msgs.append(content)
+            
+            user_msgs.extend(cs_deleted_user_messages)
+            user_msgs.extend(consecutive_user_msgs)
+            
             if user_msgs:
                 logging.info("user_msgs: %s", user_msgs)
-                last_3_user_msgs = user_msgs[-3:]
-                user_history_summary = "；".join(last_3_user_msgs)
+                last_5_user_msgs = user_msgs[-5:]
+                user_history_summary = "；".join(last_5_user_msgs)
         else:
             preserved_messages = chat_messages
-            user_history_array = []
+            all_user_history = cs_deleted_user_messages + consecutive_user_msgs
+            if all_user_history:
+                user_history_summary = "；".join(all_user_history)
                 
         new_user_message = msg_util.user_message( f"""用户最近还曾问过：{user_history_summary}""")
         logging.info("new_user_message: %s", new_user_message)
         logging.info("preserved_messages: %s", preserved_messages)
+        logging.info("cs_deleted_user_messages: %s", cs_deleted_user_messages)
         preserved_messages.insert(0, new_user_message)
         messages = assistant_system_message + memory.integrate_context(preserved_messages) + tool_call_messages
 

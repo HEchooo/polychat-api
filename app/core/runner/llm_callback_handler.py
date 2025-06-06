@@ -89,7 +89,7 @@ class LLMCallbackHandler:
 
                 if chunk.usage:
                     self.event_handler.pub_message_usage(chunk)
-                    continue
+                    # continue
 
                 if not chunk.choices:
                     continue
