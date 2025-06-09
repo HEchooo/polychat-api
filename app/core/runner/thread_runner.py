@@ -40,6 +40,7 @@ from app.services.token.token_relation import TokenRelationService
 from app.exceptions.exception import InterpreterNotSupported
 from openai.types.chat import ChatCompletionChunk, ChatCompletion
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
+from app.core.runner.feishu_alert import feishu_notifier
 
 
 
@@ -122,6 +123,17 @@ class ThreadRunner:
             MessageService.get_message_list(session=self.session, thread_id=run.thread_id)
         )
 
+        if len(chat_messages) > 0 and len(run_steps) == 0:
+            last_user_message = None
+            for message in reversed(chat_messages):
+                if message.get("role") == "user":
+                    last_user_message = message
+                    break
+            
+            if last_user_message:
+                last_message_content = last_user_message.get("content")
+                feishu_notifier.send_notify(self.run_id, last_message_content)
+
         # get user info message
         system_user_message = None
         system_user_index = None
@@ -147,9 +159,9 @@ class ThreadRunner:
         if system_user_index is not None:
             del chat_messages[system_user_index]
         extracted_system_text = f"{extracted_system_text};thread_id:{run.thread_id}"
-        logging.info("extracted_system_text: %s", extracted_system_text)
+        # logging.info("extracted_system_text: %s", extracted_system_text)
 
-        logging.info("chat_messages before processing: %s", chat_messages)
+        # logging.info("chat_messages before processing: %s", chat_messages)
 
         cs_to_delete_indices = set()
         cs_deleted_user_messages = []  
@@ -209,14 +221,58 @@ class ThreadRunner:
             for msg in self.__convert_assistant_tool_calls_to_chat_messages(step)
         ]
 
-        logging.info("chat_messages before: %s", chat_messages)
+        # logging.info("chat_messages before: %s", chat_messages)
 
-        sr_rc_to_delete_indices = set()
+        # Handle SR0001 processing with new logic
+        sr_to_delete_indices = set()
         for idx, msg in enumerate(chat_messages):
             if (
                 msg.get("role") == "assistant"
                 and isinstance(msg.get("content"), str)
-                and ("SR0001" in msg["content"] or "RC0001" in msg["content"])
+                and "SR0001" in msg["content"]
+            ):
+                is_last = (idx == len(chat_messages) - 1)
+                
+                # If not the last message, apply deletion logic
+                if not is_last:
+                    sr_to_delete_indices.add(idx)
+                    
+                    # Check if next message is SR0002 and delete it too
+                    if idx + 1 < len(chat_messages):
+                        next_msg = chat_messages[idx + 1]
+                        next_content = next_msg.get("content", "")
+                        if isinstance(next_content, str) and "SR0002" in next_content:
+                            sr_to_delete_indices.add(idx + 1)
+                    
+                    # If previous message is user, add resolved tag
+                    if idx > 0 and chat_messages[idx - 1].get("role") == "user":
+                        prev_msg = chat_messages[idx - 1]
+                        prev_content = prev_msg.get("content", "")
+                        
+                        if isinstance(prev_content, str):
+                            # Add resolved tag to string content
+                            prev_msg["content"] = prev_content + "（已解决，请勿重复回答这个问题）"
+                        elif isinstance(prev_content, list):
+                            # Add resolved tag to list content
+                            for item in prev_content:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    original_text = item.get("text", "")
+                                    item["text"] = original_text + "（已解决，请勿重复回答这个问题）"
+                                    break
+                            else:
+                                # If no text item found, add new text item
+                                prev_content.append({
+                                    "type": "text",
+                                    "text": "（已解决，请勿重复回答这个问题）"
+                                })
+
+        # Handle RC0001 processing with original logic
+        rc_to_delete_indices = set()
+        for idx, msg in enumerate(chat_messages):
+            if (
+                msg.get("role") == "assistant"
+                and isinstance(msg.get("content"), str)
+                and "RC0001" in msg["content"]
             ):
                 is_last = (idx == len(chat_messages) - 1)
                 should_delete = False
@@ -224,29 +280,35 @@ class ThreadRunner:
                 if not is_last:
                     next_msg = chat_messages[idx + 1]
                     next_content = next_msg.get("content", "")
-                    logging.info("Found SR0001 or RC0001, idx: %s, next_content: %s", idx, next_content)
+                    # logging.info("Found RC0001, idx: %s, next_content: %s", idx, next_content)
 
                     if isinstance(next_content, str):
-                        logging.info("next_content: %s", next_content)
-                        if "SR0002" not in next_content and "RC0002" not in next_content:
+                        # logging.info("next_content: %s", next_content)
+                        if "RC0002" not in next_content:
                             should_delete = True
                     elif isinstance(next_content, list):
                         next_str = json.dumps(next_content)
-                        if "SR0002" not in next_str and "RC0002" not in next_str:
+                        if "RC0002" not in next_str:
                             should_delete = True
                 else:
                     if len(tool_call_messages) == 0:
                         should_delete = True
 
                 if should_delete:
-                    sr_rc_to_delete_indices.add(idx)
+                    rc_to_delete_indices.add(idx)
                     if idx > 0 and chat_messages[idx - 1].get("role") == "user":
-                        sr_rc_to_delete_indices.add(idx - 1)
-        logging.info("sr_rc_to_delete_indices after: %s", sr_rc_to_delete_indices)
+                        rc_to_delete_indices.add(idx - 1)
+
+        # Combine all indices to delete
+        all_to_delete_indices = sr_to_delete_indices | rc_to_delete_indices
+        logging.info("sr_to_delete_indices: %s", sr_to_delete_indices)
+        logging.info("rc_to_delete_indices: %s", rc_to_delete_indices)
+        logging.info("all_to_delete_indices: %s", all_to_delete_indices)
+        
         chat_messages = [
-            msg for idx, msg in enumerate(chat_messages) if idx not in sr_rc_to_delete_indices
+            msg for idx, msg in enumerate(chat_messages) if idx not in all_to_delete_indices
         ]
-        logging.info("chat_messages after: %s", chat_messages)
+        # logging.info("chat_messages after SR/RC processing: %s", chat_messages)
 
         if tool_settings.FILTER_TAGS:
             filter_to_delete_indices = set()
@@ -260,12 +322,12 @@ class ThreadRunner:
                                 filter_to_delete_indices.add(idx - 1)
                             break
             
-            logging.info("filter_to_delete_indices: %s", filter_to_delete_indices)
-            logging.info("filtered tags: %s", tool_settings.FILTER_TAGS)
+            # logging.info("filter_to_delete_indices: %s", filter_to_delete_indices)
+            # logging.info("filtered tags: %s", tool_settings.FILTER_TAGS)
             chat_messages = [
                 msg for idx, msg in enumerate(chat_messages) if idx not in filter_to_delete_indices
             ]
-            logging.info("chat_messages after tag filtering: %s", chat_messages)
+            # logging.info("chat_messages after tag filtering: %s", chat_messages)
         assistant_system_message = []
         if system_message:
             if system_message.get("content") and system_message.get("content").strip():
@@ -325,7 +387,7 @@ class ThreadRunner:
                 preserved_messages = chat_messages[-self.max_chat_history:]
                 truncated_messages = chat_messages[:-self.max_chat_history]
 
-            logging.info("chat messages is too long, truncate to ensure start with user before last %d messages", self.max_chat_history)
+            # logging.info("chat messages is too long, truncate to ensure start with user before last %d messages", self.max_chat_history)
 
             user_msgs = []
             for msg in truncated_messages:
@@ -347,7 +409,7 @@ class ThreadRunner:
             user_msgs.extend(consecutive_user_msgs)
             
             if user_msgs:
-                logging.info("user_msgs: %s", user_msgs)
+                # logging.info("user_msgs: %s", user_msgs)
                 last_5_user_msgs = user_msgs[-5:]
                 user_history_summary = "；".join(last_5_user_msgs)
         else:
@@ -357,9 +419,9 @@ class ThreadRunner:
                 user_history_summary = "；".join(all_user_history)
                 
         new_user_message = msg_util.user_message( f"""用户最近还曾问过：{user_history_summary}""")
-        logging.info("new_user_message: %s", new_user_message)
-        logging.info("preserved_messages: %s", preserved_messages)
-        logging.info("cs_deleted_user_messages: %s", cs_deleted_user_messages)
+        # logging.info("new_user_message: %s", new_user_message)
+        # logging.info("preserved_messages: %s", preserved_messages)
+        # logging.info("cs_deleted_user_messages: %s", cs_deleted_user_messages)
         preserved_messages.insert(0, new_user_message)
         messages = assistant_system_message + memory.integrate_context(preserved_messages) + tool_call_messages
 
@@ -472,20 +534,38 @@ class ThreadRunner:
                                             if matched_prefix == "RC0002":
                                                 # Skip the RC0002 prefix and output the remaining content
                                                 remaining = buffer[6:]
-                                                if remaining:
-                                                    yield ChatCompletionChunk(
-                                                        id="chatcmpl",
-                                                        object="chat.completion.chunk",
-                                                        created=0,
-                                                        model="model",
-                                                        choices=[
-                                                            Choice(
-                                                                index=0,
-                                                                delta=ChoiceDelta(content=remaining, role="assistant"),
-                                                                finish_reason=None,
-                                                            )
-                                                        ],
-                                                    )
+                                                logging.info("remaining %s", response_msg.content)
+                                                if response_msg.content and "RC0001" in response_msg.content:
+                                                    if remaining:
+                                                        yield ChatCompletionChunk(
+                                                            id="chatcmpl",
+                                                            object="chat.completion.chunk",
+                                                            created=0,
+                                                            model="model",
+                                                            choices=[
+                                                                Choice(
+                                                                    index=0,
+                                                                    delta=ChoiceDelta(content=remaining, role="assistant"),
+                                                                    finish_reason=None,
+                                                                )
+                                                            ],
+                                                        )
+                                                else: 
+                                                    if remaining:
+                                                        prefixed_remaining = '{ "msgs": [' + remaining
+                                                        yield ChatCompletionChunk(
+                                                            id="chatcmpl",
+                                                            object="chat.completion.chunk",
+                                                            created=0,
+                                                            model="model",
+                                                            choices=[
+                                                                Choice(
+                                                                    index=0,
+                                                                    delta=ChoiceDelta(content=prefixed_remaining, role="assistant"),
+                                                                    finish_reason=None,
+                                                                )
+                                                            ],
+                                                        )
                                             else:
                                                 # Output the entire buffer content
                                                 yield ChatCompletionChunk(

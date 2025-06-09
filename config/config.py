@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     AUTH_ADMIN_TOKEN: str = "admin"
     AES_ENCRYPTION_KEY: str = "xxx"
 
+    # Feishu notification settings
+    FEISHU_ACCESS_TOKEN: str = ""
+    FEISHU_ACCESS_SECRET: str = ""
+    FEISHU_ENVIRONMENT: str = "dev"
+
     class Config:
         env_prefix = "APP_"
         env_file = ".env"

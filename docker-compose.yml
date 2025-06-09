@@ -67,6 +67,11 @@ services:
       # secret
       APP_AES_ENCRYPTION_KEY: 7700b2f9c8dd982dfaddf8b47a92f1d900507ee8ac335f96a64e9ca0f018b195
 
+      # feishu notification
+      APP_FEISHU_ACCESS_TOKEN: ""
+      APP_FEISHU_ACCESS_SECRET: ""
+      APP_FEISHU_ENVIRONMENT: dev
+
     depends_on:
       - db
       - redis
@@ -163,6 +168,11 @@ services:
 
        # secret
       APP_AES_ENCRYPTION_KEY: 7700b2f9c8dd982dfaddf8b47a92f1d900507ee8ac335f96a64e9ca0f018b195
+
+      # feishu notification
+      APP_FEISHU_ACCESS_TOKEN: ""
+      APP_FEISHU_ACCESS_SECRET: ""
+      APP_FEISHU_ENVIRONMENT: dev
 
     depends_on:
       - db

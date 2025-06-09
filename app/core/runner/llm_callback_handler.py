@@ -6,7 +6,7 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletionMessage
 from app.core.runner.pub_handler import StreamEventHandler
 from app.core.runner.utils import message_util
 from config.llm import tool_settings
-
+from app.core.runner.feishu_alert import feishu_notifier
 
 class LLMCallbackHandler:
     """
@@ -85,7 +85,7 @@ class LLMCallbackHandler:
             last_chunk = None
             for chunk in response_stream:
                 last_chunk = chunk
-                logging.debug("llm response chunk: %s", chunk)
+                # logging.debug("llm response chunk: %s", chunk)
 
                 if chunk.usage:
                     self.event_handler.pub_message_usage(chunk)
@@ -118,7 +118,7 @@ class LLMCallbackHandler:
 
                     raw_content += delta.content
 
-                    if self._matched_prefix in self._phase_a_buffered_prefixes:
+                    if self._matched_prefix in self._phase_a_buffered_prefixes:            
                         self.remain_text += delta.content
 
                         if self._phase_b_started:
@@ -152,6 +152,10 @@ class LLMCallbackHandler:
                             delta_to_send = delta.content
 
                     if delta_to_send:
+                        # TODO: Fix json format issue, clean comma before '}' before sending
+                        if '}' in delta_to_send:
+                            delta_to_send = re.sub(r',(\s*\n\s*)?}', r'}', delta_to_send)
+                        
                         final_content += delta_to_send
                         self.event_handler.pub_message_delta(self.message.id, index, delta_to_send, delta.role)
                         index += 1
@@ -168,8 +172,13 @@ class LLMCallbackHandler:
             logging.info("No usage information in the last chunk: %s", last_chunk)
         
         if self._buffer_prefix:
-            final_content += self._buffer_prefix
-            self.event_handler.pub_message_delta(self.message.id, index, self._buffer_prefix, "assistant")
+            # TODO: Fix json format issue, clean comma before '}' before sending
+            buffer_to_send = self._buffer_prefix
+            if '}' in buffer_to_send:
+                buffer_to_send = re.sub(r',(\s*\n\s*)?}', r'}', buffer_to_send)
+            
+            final_content += buffer_to_send
+            self.event_handler.pub_message_delta(self.message.id, index, buffer_to_send, "assistant")
             index += 1
             self._buffer_prefix = ""
 
@@ -182,6 +191,11 @@ class LLMCallbackHandler:
             else:
                 delta_to_emit = self.remain_text
                 logging.info("Single phase, emit original remain_text")
+            
+            # TODO: Fix json format issue, clean comma before '}' before sending
+            if '}' in delta_to_emit:
+                delta_to_emit = re.sub(r',(\s*\n\s*)?}', r'}', delta_to_emit)
+            
             final_content += delta_to_emit
             self.event_handler.pub_message_delta(self.message.id, index, delta_to_emit, "assistant")
             index += 1
@@ -214,9 +228,14 @@ class LLMCallbackHandler:
 
         final_content += tail
         if tail:
-            self.event_handler.pub_message_delta(self.message.id, index, tail, "assistant")
+            # TODO: Fix json format issue, clean comma before '}' before sending
+            tail_to_send = tail
+            if '}' in tail_to_send:
+                tail_to_send = re.sub(r',(\s*\n\s*)?}', r'}', tail_to_send)
+            self.event_handler.pub_message_delta(self.message.id, index, tail_to_send, "assistant")
 
         logging.info("llm response message: %s", raw_content)
+        feishu_notifier.send_notify(self.run_id, f"{final_content}")
         logging.info("llm response format message: %s", final_content)
 
         message.content = raw_content
