@@ -136,9 +136,22 @@ class FeishuNotifier(Notifier):
         else:
             self.feishu_api = None
 
-    def send_notify(self, title, content) -> None:
-        # Skip notification if no valid API configuration
+    def is_assistant_enabled(self, assistant_id):
+        """Check if the assistant is enabled for Feishu notifications"""
+        from config.config import settings
+        
+        if not settings.FEISHU_ENABLED_ASSISTANTS:
+            return True
+        
+        enabled_assistants = [aid.strip() for aid in settings.FEISHU_ENABLED_ASSISTANTS.split(',') if aid.strip()]
+        return assistant_id in enabled_assistants
+
+    def send_notify(self, title, content, assistant_id=None) -> None:
         if not self.feishu_api:
+            return
+        
+        if assistant_id and not self.is_assistant_enabled(assistant_id):
+            logging.info(f"Assistant {assistant_id} is not enabled for notifications")
             return
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

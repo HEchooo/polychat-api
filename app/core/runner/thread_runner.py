@@ -132,7 +132,7 @@ class ThreadRunner:
             
             if last_user_message:
                 last_message_content = last_user_message.get("content")
-                feishu_notifier.send_notify(self.run_id, last_message_content)
+                feishu_notifier.send_notify(self.run_id, last_message_content, run.assistant_id)
 
         # get user info message
         system_user_message = None
@@ -464,6 +464,7 @@ class ThreadRunner:
             on_step_create_func=_create_message_creation_run_step,
             on_message_create_func=create_message_callback,
             event_handler=self.event_handler,
+            assistant_id=run.assistant_id,
         )
         response_msg = llm_callback_handler.handle_llm_response(response_stream)
         message_creation_run_step = llm_callback_handler.step
