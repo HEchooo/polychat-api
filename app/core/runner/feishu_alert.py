@@ -8,6 +8,7 @@ import requests
 import hmac
 import hashlib
 import base64
+from datetime import datetime
 
 from queue import Empty, Queue
 from threading import Thread
@@ -139,10 +140,13 @@ class FeishuNotifier(Notifier):
         # Skip notification if no valid API configuration
         if not self.feishu_api:
             return
+        
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        title_with_timestamp = f"{title}-{timestamp}"
             
         if not self.active:
             self.start()
-        self.queue.put(NotifyMsg(title, content))
+        self.queue.put(NotifyMsg(title_with_timestamp, content))
 
     def run(self) -> None:
         while self.active:
