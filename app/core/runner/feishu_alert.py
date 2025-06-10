@@ -146,7 +146,7 @@ class FeishuNotifier(Notifier):
         enabled_assistants = [aid.strip() for aid in settings.FEISHU_ENABLED_ASSISTANTS.split(',') if aid.strip()]
         return assistant_id in enabled_assistants
 
-    def send_notify(self, title, content, assistant_id=None) -> None:
+    def send_notify(self, title, content, assistant_id=None, thread_id=None) -> None:
         if not self.feishu_api:
             return
         
@@ -155,7 +155,7 @@ class FeishuNotifier(Notifier):
             return
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        title_final = f"{title}-a_{assistant_id}-{timestamp}"
+        title_final = f"{title}-t_{thread_id}-{timestamp}"
             
         if not self.active:
             self.start()

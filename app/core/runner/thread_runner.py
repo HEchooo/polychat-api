@@ -132,7 +132,7 @@ class ThreadRunner:
             
             if last_user_message:
                 last_message_content = last_user_message.get("content")
-                feishu_notifier.send_notify(self.run_id, last_message_content, run.assistant_id)
+                feishu_notifier.send_notify(self.run_id, last_message_content, run.assistant_id, run.thread_id)
 
         # get user info message
         system_user_message = None

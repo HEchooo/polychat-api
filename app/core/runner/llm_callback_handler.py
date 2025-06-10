@@ -14,7 +14,7 @@ class LLMCallbackHandler:
     """
 
     def __init__(
-        self, run_id: str, on_step_create_func, on_message_create_func, event_handler: StreamEventHandler, assistant_id: str
+        self, run_id: str, on_step_create_func, on_message_create_func, event_handler: StreamEventHandler, assistant_id: str, thread_id: str
     ) -> None:
         super().__init__()
         self.run_id = run_id
@@ -25,6 +25,7 @@ class LLMCallbackHandler:
         self.message = None
         self.event_handler: StreamEventHandler = event_handler
         self.assistant_id = assistant_id
+        self.thread_id = thread_id
         self._buffer_prefix = ""
         self._matched_prefix = None
         self.remain_text = ""
@@ -235,7 +236,7 @@ class LLMCallbackHandler:
             self.event_handler.pub_message_delta(self.message.id, index, tail_to_send, "assistant")
 
         logging.info("llm response message: %s", raw_content)
-        feishu_notifier.send_notify(self.run_id, f"{final_content}", self.assistant_id)
+        feishu_notifier.send_notify(self.run_id, f"{final_content}", self.assistant_id, self.thread_id)
         logging.info("llm response format message: %s", final_content)
 
         message.content = raw_content
