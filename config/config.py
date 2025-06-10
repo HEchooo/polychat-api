@@ -20,11 +20,14 @@ class Settings(BaseSettings):
     AES_ENCRYPTION_KEY: str = "xxx"
 
     # Feishu notification settings
-    FEISHU_ACCESS_TOKEN: str = ""
-    FEISHU_ACCESS_SECRET: str = ""
     FEISHU_ENVIRONMENT: str = "dev"
 
+    FEISHU_RAW_ACCESS_TOKEN: str = ""
+    FEISHU_RAW_ACCESS_SECRET: str = ""
     FEISHU_ENABLED_ASSISTANTS_RAW_CONTENT: str = ""
+    
+    FEISHU_FINAL_ACCESS_TOKEN: str = ""
+    FEISHU_FINAL_ACCESS_SECRET: str = ""
     FEISHU_ENABLED_ASSISTANTS_FINAL_CONTENT: str = ""
 
     class Config:

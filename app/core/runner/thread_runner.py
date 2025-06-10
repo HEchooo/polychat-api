@@ -132,9 +132,9 @@ class ThreadRunner:
             
             if last_user_message:
                 last_message_content = last_user_message.get("content")
-                if feishu_notifier.is_assistant_enabled_for_user_message(run.assistant_id):
-                    feishu_notifier.send_notify(self.run_id, last_message_content)
-                    logging.info("Sent user message notification for assistant %s", run.assistant_id)
+                if (feishu_notifier.is_assistant_enabled_for_raw_content(run.assistant_id) or 
+                    feishu_notifier.is_assistant_enabled_for_final_content(run.assistant_id)):
+                    feishu_notifier.send_notify(self.run_id, last_message_content, run.assistant_id)
 
         # get user info message
         system_user_message = None

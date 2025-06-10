@@ -106,9 +106,10 @@ class FeishuApi:
 
 class NotifyMsg(object):
 
-    def __init__(self, title, message) -> None:
+    def __init__(self, title, message, api=None) -> None:
         self.title = title
         self.message = message
+        self.api = api
 
 class Notifier(object):
 
@@ -117,24 +118,25 @@ class Notifier(object):
 
 class FeishuNotifier(Notifier):
 
-    def __init__(self, access_token = None, access_secret = None, environment = None):
+    def __init__(self, environment = None):
         # Import here to avoid circular imports
         from config.config import settings
         
-        # Use provided values or fall back to settings
-        self.access_token = access_token or settings.FEISHU_ACCESS_TOKEN
-        self.access_secret = access_secret or settings.FEISHU_ACCESS_SECRET
         self.environment = environment or settings.FEISHU_ENVIRONMENT
         
         self.thread: Thread = Thread(name = 'feishu_notify', target=self.run)
         self.queue: Queue = Queue()
         self.active: bool = False
         
-        # Only create FeishuApi if we have valid credentials
-        if self.access_token and self.access_secret:
-            self.feishu_api = FeishuApi(self.access_token, self.access_secret, self.environment)
+        if settings.FEISHU_RAW_ACCESS_TOKEN and settings.FEISHU_RAW_ACCESS_SECRET:
+            self.feishu_api_raw = FeishuApi(settings.FEISHU_RAW_ACCESS_TOKEN, settings.FEISHU_RAW_ACCESS_SECRET, self.environment)
         else:
-            self.feishu_api = None
+            self.feishu_api_raw = None
+        
+        if settings.FEISHU_FINAL_ACCESS_TOKEN and settings.FEISHU_FINAL_ACCESS_SECRET:
+            self.feishu_api_final = FeishuApi(settings.FEISHU_FINAL_ACCESS_TOKEN, settings.FEISHU_FINAL_ACCESS_SECRET, self.environment)
+        else:
+            self.feishu_api_final = None
 
     @staticmethod
     def is_assistant_enabled_for_raw_content(assistant_id):
@@ -161,8 +163,18 @@ class FeishuNotifier(Notifier):
         return (FeishuNotifier.is_assistant_enabled_for_raw_content(assistant_id) or 
                 FeishuNotifier.is_assistant_enabled_for_final_content(assistant_id))
 
-    def send_notify(self, title, content) -> None:
-        if not self.feishu_api:
+    def send_notify(self, title, content, assistant_id=None) -> None:
+        api_to_use = None
+        
+        if assistant_id and self.is_assistant_enabled_for_raw_content(assistant_id):
+            api_to_use = self.feishu_api_raw
+        elif assistant_id and self.is_assistant_enabled_for_final_content(assistant_id):
+            api_to_use = self.feishu_api_final
+        else:
+            api_to_use = self.feishu_api_final or self.feishu_api_raw
+        
+        if not api_to_use:
+            logging.warning(f"No valid FeishuApi configuration for assistant: {assistant_id}")
             return
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -170,14 +182,14 @@ class FeishuNotifier(Notifier):
             
         if not self.active:
             self.start()
-        self.queue.put(NotifyMsg(title_with_timestamp, content))
+        self.queue.put(NotifyMsg(title_with_timestamp, content, api_to_use))
 
     def run(self) -> None:
         while self.active:
             try:
                 msg = self.queue.get(block=True, timeout=1)
-                if self.feishu_api:
-                    self.feishu_api.send_post(msg.title, msg.message)
+                if msg.api:
+                    msg.api.send_post(msg.title, msg.message)
             except Empty:
                 pass
 
