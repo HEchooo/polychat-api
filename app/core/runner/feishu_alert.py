@@ -9,7 +9,7 @@ import hmac
 import hashlib
 import base64
 from datetime import datetime
-
+from config.config import settings
 from queue import Empty, Queue
 from threading import Thread
 
@@ -136,22 +136,33 @@ class FeishuNotifier(Notifier):
         else:
             self.feishu_api = None
 
-    def is_assistant_enabled(self, assistant_id):
-        """Check if the assistant is enabled for Feishu notifications"""
-        from config.config import settings
+    @staticmethod
+    def is_assistant_enabled_for_raw_content(assistant_id):
         
-        if not settings.FEISHU_ENABLED_ASSISTANTS:
+        if not settings.FEISHU_ENABLED_ASSISTANTS_RAW_CONTENT:
             return True
         
-        enabled_assistants = [aid.strip() for aid in settings.FEISHU_ENABLED_ASSISTANTS.split(',') if aid.strip()]
+        enabled_assistants = [aid.strip() for aid in settings.FEISHU_ENABLED_ASSISTANTS_RAW_CONTENT.split(',') if aid.strip()]
         return assistant_id in enabled_assistants
 
-    def send_notify(self, title, content, assistant_id=None) -> None:
-        if not self.feishu_api:
-            return
+    @staticmethod
+    def is_assistant_enabled_for_final_content(assistant_id):
         
-        if assistant_id and not self.is_assistant_enabled(assistant_id):
-            logging.info(f"Assistant {assistant_id} is not enabled for notifications")
+        if not settings.FEISHU_ENABLED_ASSISTANTS_FINAL_CONTENT:
+            return True
+        
+        enabled_assistants = [aid.strip() for aid in settings.FEISHU_ENABLED_ASSISTANTS_FINAL_CONTENT.split(',') if aid.strip()]
+        return assistant_id in enabled_assistants
+
+    @staticmethod
+    def is_assistant_enabled_for_user_message(assistant_id):
+        """Check if the assistant is enabled for user message notifications"""
+        
+        return (FeishuNotifier.is_assistant_enabled_for_raw_content(assistant_id) or 
+                FeishuNotifier.is_assistant_enabled_for_final_content(assistant_id))
+
+    def send_notify(self, title, content) -> None:
+        if not self.feishu_api:
             return
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

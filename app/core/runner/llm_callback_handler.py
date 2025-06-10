@@ -235,7 +235,15 @@ class LLMCallbackHandler:
             self.event_handler.pub_message_delta(self.message.id, index, tail_to_send, "assistant")
 
         logging.info("llm response message: %s", raw_content)
-        feishu_notifier.send_notify(self.run_id, f"{final_content}", self.assistant_id)
+        
+        if feishu_notifier.is_assistant_enabled_for_raw_content(self.assistant_id):
+            feishu_notifier.send_notify(self.run_id, f"{raw_content}")
+            logging.info("Sent raw content notification for assistant %s", self.assistant_id)
+        
+        if feishu_notifier.is_assistant_enabled_for_final_content(self.assistant_id):
+            feishu_notifier.send_notify(self.run_id, f"{final_content}")
+            logging.info("Sent final content notification for assistant %s", self.assistant_id)
+            
         logging.info("llm response format message: %s", final_content)
 
         message.content = raw_content

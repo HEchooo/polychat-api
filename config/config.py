@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     FEISHU_ACCESS_TOKEN: str = ""
     FEISHU_ACCESS_SECRET: str = ""
     FEISHU_ENVIRONMENT: str = "dev"
-    FEISHU_ENABLED_ASSISTANTS: str = ""
+
+    FEISHU_ENABLED_ASSISTANTS_RAW_CONTENT: str = ""
+    FEISHU_ENABLED_ASSISTANTS_FINAL_CONTENT: str = ""
 
     class Config:
         env_prefix = "APP_"
