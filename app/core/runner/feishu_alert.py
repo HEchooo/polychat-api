@@ -155,11 +155,11 @@ class FeishuNotifier(Notifier):
             return
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        title_with_timestamp = f"{title}-{timestamp}"
+        title_final = f"{title}-a_{assistant_id}-{timestamp}"
             
         if not self.active:
             self.start()
-        self.queue.put(NotifyMsg(title_with_timestamp, content))
+        self.queue.put(NotifyMsg(title_final, content))
 
     def run(self) -> None:
         while self.active:
