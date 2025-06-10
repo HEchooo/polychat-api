@@ -465,6 +465,7 @@ class ThreadRunner:
             on_message_create_func=create_message_callback,
             event_handler=self.event_handler,
             assistant_id=run.assistant_id,
+            thread_id=run.thread_id,
         )
         response_msg = llm_callback_handler.handle_llm_response(response_stream)
         message_creation_run_step = llm_callback_handler.step
