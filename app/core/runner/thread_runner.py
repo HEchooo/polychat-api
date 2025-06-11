@@ -645,7 +645,7 @@ class ThreadRunner:
                         )
                         RunService.to_completed(session=self.session, run_id=run.id)
                         self.event_handler.pub_run_step_completed(new_step)
-                        self.event_handler.pub_run_completed(run)
+                        # self.event_handler.pub_run_completed(run)
 
                         return False
                     elif is_special_normal_tool:
@@ -677,7 +677,7 @@ class ThreadRunner:
                         )
                         RunService.to_completed(session=self.session, run_id=run.id)
                         self.event_handler.pub_run_step_completed(new_step)
-                        self.event_handler.pub_run_completed(run)
+                        # self.event_handler.pub_run_completed(run)
 
                         return False
                     new_run_step = RunStepService.update_step_details(
