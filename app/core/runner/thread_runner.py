@@ -482,7 +482,7 @@ class ThreadRunner:
                     message_id=llm_callback_handler.message.id,
                     body=MessageUpdate(content=response_msg.content),
                 )
-            
+                self.event_handler.pub_message_completed(initial_message)
             # tool & tool_call definition dict
             tool_calls = [tool_call_recognize(tool_call, tools) for tool_call in response_msg.tool_calls]
 
@@ -611,7 +611,7 @@ class ThreadRunner:
                                     choices=[
                                         Choice(
                                             index=0,
-                                            delta=ChoiceDelta(content="\t] \t }", role="assistant"),
+                                            delta=ChoiceDelta(content="]}", role="assistant"),
                                             finish_reason=None,
                                         )
                                     ],

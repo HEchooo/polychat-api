@@ -81,6 +81,7 @@ class LLMCallbackHandler:
         index = 0
         raw_content = ""
         final_content = ""
+        self.final_message_started = False
 
         try:
             last_chunk = None
