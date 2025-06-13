@@ -41,7 +41,7 @@ from app.exceptions.exception import InterpreterNotSupported
 from openai.types.chat import ChatCompletionChunk, ChatCompletion
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 from app.core.runner.feishu_alert import feishu_notifier
-
+from app.core.runner.utils.format_util import extract_http_links
 
 
 class ThreadRunner:
@@ -132,6 +132,22 @@ class ThreadRunner:
             
             if last_user_message:
                 last_message_content = last_user_message.get("content")
+                content_str = None
+                if isinstance(last_message_content, str):
+                    content_str = last_message_content
+                elif isinstance(last_message_content, list):
+                    text_items = []
+                    for item in last_message_content:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            text_val = item.get("text", "")
+                            if isinstance(text_val, str):
+                                text_items.append(text_val)
+                    content_str = " ".join(text_items)
+                if content_str and "http" in content_str:
+                    extracted_links = extract_http_links(content_str)
+                    if extracted_links:
+                        last_user_message["content"] = "; ".join(extracted_links)
+                        last_message_content = last_user_message["content"]
                 feishu_notifier.send_notify(self.run_id, last_message_content, run.assistant_id, run.thread_id)
 
         # get user info message
