@@ -146,7 +146,8 @@ class ThreadRunner:
                 if content_str and "http" in content_str:
                     extracted_links = extract_http_links(content_str)
                     if extracted_links:
-                        last_user_message["content"] = "; ".join(extracted_links)
+                        logging.info("extracted_links: %s", extracted_links)
+                        last_user_message["content"] = extracted_links
                         last_message_content = last_user_message["content"]
                 feishu_notifier.send_notify(self.run_id, last_message_content, run.assistant_id, run.thread_id)
 
@@ -265,22 +266,32 @@ class ThreadRunner:
                         prev_msg = chat_messages[idx - 1]
                         prev_content = prev_msg.get("content", "")
                         
+                        contains_http = False
                         if isinstance(prev_content, str):
-                            # Add resolved tag to string content
-                            prev_msg["content"] = prev_content + "（已解决，请勿重复回答这个问题）"
+                            contains_http = "http" in prev_content
                         elif isinstance(prev_content, list):
-                            # Add resolved tag to list content
                             for item in prev_content:
                                 if isinstance(item, dict) and item.get("type") == "text":
-                                    original_text = item.get("text", "")
-                                    item["text"] = original_text + "（已解决，请勿重复回答这个问题）"
-                                    break
-                            else:
-                                # If no text item found, add new text item
-                                prev_content.append({
-                                    "type": "text",
-                                    "text": "（已解决，请勿重复回答这个问题）"
-                                })
+                                    if "http" in item.get("text", ""):
+                                        contains_http = True
+                                        break
+                        
+                        if contains_http:
+                            sr_to_delete_indices.add(idx - 1)
+                        else:
+                            if isinstance(prev_content, str):
+                                prev_msg["content"] = prev_content + "（已解决，请勿重复回答这个问题）"
+                            elif isinstance(prev_content, list):
+                                for item in prev_content:
+                                    if isinstance(item, dict) and item.get("type") == "text":
+                                        original_text = item.get("text", "")
+                                        item["text"] = original_text + "（已解决，请勿重复回答这个问题）"
+                                        break
+                                else:
+                                    prev_content.append({
+                                        "type": "text",
+                                        "text": "（已解决，请勿重复回答这个问题）"
+                                    })
 
         # Handle RC0001 processing with original logic
         rc_to_delete_indices = set()

@@ -1,19 +1,21 @@
 import re
 
 def extract_http_links(text):
-    pattern = r'https?://[^\s<>"{}|\\^`[\]]+'
+    basic_pattern = r'https?://[^\s]+'
+    match = re.search(basic_pattern, text)
     
-    links = re.findall(pattern, text)
+    if not match:
+        return ""
     
-    cleaned_links = []
-    for link in links:
-        link = re.sub(r'[.,;:!?)\]}]+$', '', link)
-        if link:
-            cleaned_links.append(link)
+    link = match.group()
     
-    unique_links = []
-    for link in cleaned_links:
-        if link not in unique_links:
-            unique_links.append(link)
+    if any(domain in link.lower() for domain in ['tb.cn', 'taobao.com', 'tmall.com']):
+        link_end = match.end()
+        remaining_text = text[link_end:]
+        
+        space_param_match = re.match(r'\s+([A-Za-z0-9]+)', remaining_text)
+        
+        if space_param_match:
+            return link + ' ' + space_param_match.group(1)
     
-    return unique_links
+    return link
