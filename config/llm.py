@@ -82,6 +82,8 @@ class ToolSettings(BaseSettings):
     SPECIAL_NORMAL_TOOLS: list[str] = ["combine_search_v2"]
     
     FILTER_TAGS: list[str] = ["NC0002"]
+    
+    BOT_ASSISTANT_IDS: str = "" 
 
     class Config(object):
         env_file = ".env"

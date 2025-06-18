@@ -13,6 +13,7 @@ from config.llm import llm_settings, tool_settings
 
 from app.core.runner.llm_backend import LLMBackend
 from app.core.runner.llm_callback_handler import LLMCallbackHandler
+from app.core.runner.llm_callback_handler_bot import LLMCallbackHandlerBot
 from app.core.runner.memory import Memory, find_memory
 from app.core.runner.pub_handler import StreamEventHandler
 from app.core.runner.utils import message_util as msg_util
@@ -486,14 +487,26 @@ class ThreadRunner:
                 step_details={"type": "message_creation", "message_creation": {"message_id": message_id}},
             )
 
-        llm_callback_handler = LLMCallbackHandler(
-            run_id=run.id,
-            on_step_create_func=_create_message_creation_run_step,
-            on_message_create_func=create_message_callback,
-            event_handler=self.event_handler,
-            assistant_id=run.assistant_id,
-            thread_id=run.thread_id,
-        )
+        if self._is_bot_assistant(run.assistant_id):
+            llm_callback_handler = LLMCallbackHandlerBot(
+                run_id=run.id,
+                on_step_create_func=_create_message_creation_run_step,
+                on_message_create_func=create_message_callback,
+                event_handler=self.event_handler,
+                assistant_id=run.assistant_id,
+                thread_id=run.thread_id,
+            )
+            logging.info("Using LLMCallbackHandlerBot for assistant %s", run.assistant_id)
+        else:
+            llm_callback_handler = LLMCallbackHandler(
+                run_id=run.id,
+                on_step_create_func=_create_message_creation_run_step,
+                on_message_create_func=create_message_callback,
+                event_handler=self.event_handler,
+                assistant_id=run.assistant_id,
+                thread_id=run.thread_id,
+            )
+            logging.info("Using LLMCallbackHandler for assistant %s", run.assistant_id)
         response_msg = llm_callback_handler.handle_llm_response(response_stream)
         message_creation_run_step = llm_callback_handler.step
 
@@ -772,6 +785,18 @@ class ThreadRunner:
             else:
                 # fallback to local provider
                 return LLMBackend(base_url=llm_settings.LOCAL_BASE_URL, api_key=llm_settings.LOCAL_API_KEY)
+
+    def _is_bot_assistant(self, assistant_id: str) -> bool:
+        try:
+            if tool_settings.BOT_ASSISTANT_IDS:
+                bot_ids = [id.strip() for id in tool_settings.BOT_ASSISTANT_IDS.split(",") if id.strip()]
+                if assistant_id in bot_ids:
+                    logging.info("Assistant %s matched BOT_ASSISTANT_IDS", assistant_id)
+                    return True
+            return False
+        except Exception as e:
+            logging.error("Error checking if assistant %s is bot: %s", assistant_id, e)
+            return False
 
     def __generate_chat_messages(self, messages: List[Message]):
         """

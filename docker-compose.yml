@@ -72,6 +72,8 @@ services:
       APP_FEISHU_ACCESS_SECRET: ""
       APP_FEISHU_ENVIRONMENT: dev
       APP_FEISHU_ENABLED_ASSISTANTS: ""
+      
+      BOT_ASSISTANT_IDS: ""
 
     depends_on:
       - db
@@ -167,6 +169,7 @@ services:
       SPECIAL_NORMAL_TOOLS: '["combine_search_v2"]'
       FILTER_TAGS: '["NC0002"]'
 
+      BOT_ASSISTANT_IDS: ""
        # secret
       APP_AES_ENCRYPTION_KEY: 7700b2f9c8dd982dfaddf8b47a92f1d900507ee8ac335f96a64e9ca0f018b195
 
