@@ -58,7 +58,7 @@ class ThreadRunner:
         self.stream = stream
         self.max_step = llm_settings.LLM_MAX_STEP
         self.event_handler: StreamEventHandler = None
-        self.max_chat_history = 6
+        self.max_chat_history = 8
 
     def run(self):
         """
@@ -238,6 +238,39 @@ class ThreadRunner:
             msg for step in run_steps if step.type == "tool_calls" and step.status == "completed"
             for msg in self.__convert_assistant_tool_calls_to_chat_messages(step)
         ]
+
+        up_to_delete_indices = set()
+        user_profile_data = ""
+        for idx, msg in enumerate(chat_messages):
+            if (
+                msg.get("role") == "assistant"
+                and isinstance(msg.get("content"), str)
+                and "UP0001" in msg["content"]
+            ):
+                content = msg.get("content", "")
+                try:
+                    start_idx = content.find("UP0001") + 6
+                    json_part = content[start_idx:].strip()
+                    
+                    profile_data = json.loads(json_part)
+                    if isinstance(profile_data, dict) and "data" in profile_data:
+                        user_profile_data = profile_data["data"]
+                        logging.info("Extracted user profile data: %s", user_profile_data)
+                    
+                    up_to_delete_indices.add(idx)
+                    
+                    if idx > 0 and chat_messages[idx - 1].get("role") == "user":
+                        up_to_delete_indices.add(idx - 1)
+                        
+                except Exception as e:
+                    logging.warning("Failed to parse UP0001 JSON data: %s", e)
+        
+        chat_messages = [
+            msg for idx, msg in enumerate(chat_messages) if idx not in up_to_delete_indices
+        ]
+        
+        if user_profile_data:
+            extracted_system_text = f"{extracted_system_text};用户画像:{user_profile_data}"
 
         # logging.info("chat_messages before: %s", chat_messages)
 

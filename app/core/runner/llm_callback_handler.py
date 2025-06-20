@@ -40,7 +40,7 @@ class LLMCallbackHandler:
             "SR0001": "SR0002",
             "OD0001": "OD0002",
         }
-        base_special_tags = {"AD0001", "NC0001"}
+        base_special_tags = {"AD0001", "NC0001", "UP0001"}
         filter_tags = set(tool_settings.FILTER_TAGS) if tool_settings.FILTER_TAGS else set()
         self._special_tail_only_prefixes = base_special_tags | filter_tags
 
